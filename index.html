@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Notes d'investissement</title>
+<style>
+  :root{
+    --bg:#f4f5f7;
+    --card:#ffffff;
+    --text:#1c1e21;
+    --muted:#6b7280;
+    --border:#e3e5e8;
+    --accent:#2f6fed;
+    --accent-dark:#1f52b8;
+    --danger:#d9483a;
+    --ts:#2fa84f;
+    --s:#7dbf3f;
+    --f:#e69a1f;
+    --i:#d9483a;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    padding-bottom:64px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  header.topbar{
+    position:sticky; top:0; z-index:20;
+    background:var(--accent);
+    color:#fff;
+    padding:10px 14px;
+    box-shadow:0 2px 6px rgba(0,0,0,.12);
+  }
+  header.topbar h1{
+    margin:0; font-size:17px; font-weight:600;
+  }
+  .context-row{
+    display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;
+  }
+  .context-row select{
+    flex:1; min-width:110px;
+    background:rgba(255,255,255,.15);
+    color:#fff;
+    border:1px solid rgba(255,255,255,.4);
+    border-radius:8px;
+    padding:7px 8px;
+    font-size:14px;
+  }
+  .context-row select option{ color:#000; }
+
+  main{ flex:1; padding:12px; padding-bottom:24px; }
+  .screen{ display:none; }
+  .screen.active{ display:block; }
+
+  .card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:14px;
+    margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
+    border:1px solid var(--border);
+  }
+  .card h2{ margin:0 0 10px; font-size:15px; }
+  .card h3{ margin:0 0 8px; font-size:14px; color:var(--muted); font-weight:600;}
+  .muted{ color:var(--muted); font-size:13px; }
+  .row{ display:flex; gap:8px; align-items:center; }
+  .row.wrap{ flex-wrap:wrap; }
+  .grow{ flex:1; min-width:0; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--accent); color:#fff; border:none; border-radius:9px;
+    padding:10px 14px; font-size:14px; font-weight:600; cursor:pointer;
+    text-decoration:none; gap:6px; white-space:nowrap;
+  }
+  .btn:active{ background:var(--accent-dark); }
+  .btn.secondary{ background:#eef1f6; color:var(--text); }
+  .btn.secondary:active{ background:#dfe3ea; }
+  .btn.danger{ background:var(--danger); }
+  .btn.small{ padding:6px 10px; font-size:13px; }
+  .btn.block{ width:100%; }
+  .btn[disabled]{ opacity:.45; pointer-events:none; }
+
+  input[type=text], input[type=number], select, textarea{
+    width:100%; padding:9px 10px; border:1px solid var(--border);
+    border-radius:8px; font-size:14px; background:#fff; color:var(--text);
+    font-family:inherit;
+  }
+  label{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;}
+  .field{ margin-bottom:10px; }
+
+  nav.bottomnav{
+    position:fixed; bottom:0; left:0; right:0; z-index:30;
+    display:flex; background:#fff; border-top:1px solid var(--border);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav.bottomnav button{
+    flex:1; background:none; border:none; padding:8px 2px 6px;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    color:var(--muted); font-size:10.5px; font-weight:600;
+  }
+  nav.bottomnav button .ic{ font-size:19px; line-height:1; }
+  nav.bottomnav button.active{ color:var(--accent); }
+
+  .student-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 10px; border-bottom:1px solid var(--border);
+    cursor:pointer;
+  }
+  .student-item:last-child{ border-bottom:none; }
+  .student-item:active{ background:#f0f3fa; }
+  .student-name{ font-size:15px; font-weight:500; }
+  .progress-pill{
+    font-size:11px; color:var(--muted); background:#eef1f6; padding:3px 8px; border-radius:20px;
+  }
+
+  .tile-grid{
+    display:grid; grid-template-columns:repeat(2,1fr); gap:10px;
+  }
+  .tile{
+    background:var(--card); border-radius:11px; padding:10px 10px 9px;
+    border:1px solid var(--border); border-left:5px solid #c7cbd1;
+    box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer;
+  }
+  .tile:active{ background:#f0f3fa; }
+  .tile.gender-m{ border-left-color:#4d8fe6; }
+  .tile.gender-f{ border-left-color:#e0679f; }
+  .tile.gender-x{ border-left-color:#c7cbd1; }
+  .tile-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .tile-note{
+    display:inline-block; font-weight:700; font-size:13px; color:var(--accent);
+    background:#eaf0fd; padding:2px 8px; border-radius:20px;
+  }
+  .tile-late{ font-size:14px; }
+  .tile-name{ font-size:13.5px; font-weight:600; line-height:1.25; margin-bottom:3px; }
+  .tile-sub{ font-size:11px; color:var(--muted); }
+
+  .seq-block{ margin-bottom:10px; border:1px solid var(--border); border-radius:10px; overflow:hidden;}
+  .seq-header{
+    background:#eef1f6; padding:9px 10px; font-weight:600; font-size:13.5px;
+    display:flex; justify-content:space-between; align-items:center; cursor:pointer;
+  }
+  .obj-header{
+    background:#f7f8fa; padding:7px 10px; font-weight:600; font-size:12.5px; color:var(--muted);
+  }
+  .act-row{
+    padding:9px 10px; border-top:1px solid var(--border); border-left:4px solid transparent;
+  }
+  .act-row:first-child{ border-top:none; }
+  .act-row.row-late{ border-left-color:var(--i); background:#fdf3f2; }
+  .act-row.row-done{ border-left-color:var(--ts); }
+  .act-row.row-repere{ background:#fff8e8; }
+  .config-row{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; }
+  .config-row-title{ flex:1; min-width:140px; }
+  .config-row-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .config-row-actions .btn{ padding:4px 9px; font-size:12px; white-space:nowrap; }
+  .act-title{ font-size:13.5px; margin-bottom:7px; }
+  .act-title .num{ color:var(--muted); font-weight:600; margin-right:4px;}
+  .act-title .code{ color:var(--accent); font-weight:700; margin-right:6px; font-size:12px; }
+
+  .repere-bar{
+    position:relative; height:26px; border-radius:8px; background:#eef1f6; overflow:hidden; margin-top:4px;
+  }
+  .repere-fill{ position:absolute; top:0; left:0; bottom:0; background:#cfe8d6; }
+  .repere-bar.late .repere-fill{ background:#f7d3ce; }
+  .repere-label{
+    position:relative; z-index:1; font-size:11.5px; font-weight:600; line-height:26px; padding:0 10px;
+    color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .smiley-group{ display:flex; gap:6px; }
+  .smiley-btn{
+    flex:1; border-radius:9px; border:2px solid var(--border); background:#fff;
+    padding:7px 2px; font-size:19px; text-align:center; cursor:pointer; position:relative;
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+  }
+  .smiley-btn .lbl{ font-size:9.5px; font-weight:700; color:var(--muted); }
+  .smiley-btn.sel-TS{ border-color:var(--ts); background:#e7f7ec; }
+  .smiley-btn.sel-S{ border-color:var(--s); background:#f1f8e3; }
+  .smiley-btn.sel-F{ border-color:var(--f); background:#fdf2e0; }
+  .smiley-btn.sel-I{ border-color:var(--i); background:#fbe9e7; }
+
+  .studentbar{
+    display:flex; align-items:center; gap:8px; margin-bottom:10px;
+  }
+  .studentbar .navbtn{
+    background:#eef1f6; border:none; border-radius:9px; padding:10px 12px; font-size:16px; font-weight:700;
+  }
+  .studentbar .name{ flex:1; text-align:center; font-size:16px; font-weight:700; }
+
+  table.simple{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.simple th, table.simple td{ border-bottom:1px solid var(--border); padding:6px 4px; text-align:left; }
+  table.simple th{ color:var(--muted); font-size:11.5px; text-transform:uppercase;}
+
+  .toast{
+    position:fixed; bottom:74px; left:50%; transform:translateX(-50%);
+    background:#1c1e21; color:#fff; padding:9px 16px; border-radius:20px;
+    font-size:13px; z-index:99; opacity:0; pointer-events:none; transition:opacity .2s, bottom .2s;
+  }
+  .toast.show{ opacity:1; bottom:80px; }
+
+  .empty-state{ text-align:center; padding:30px 10px; color:var(--muted); font-size:14px; }
+  .class-item{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border);}
+  .class-item:last-child{border-bottom:none;}
+  .tag{ font-size:11px; background:#eef1f6; color:var(--muted); padding:2px 7px; border-radius:20px; margin-left:6px;}
+  hr.sep{ border:none; border-top:1px solid var(--border); margin:12px 0; }
+  .inline-form{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .inline-form input{ flex:1; min-width:70px; }
+  details.help summary{ font-size:13px; color:var(--accent); font-weight:600; cursor:pointer; }
+  details.help pre{
+    background:#f7f8fa; border:1px solid var(--border); border-radius:8px; padding:8px;
+    font-size:11.5px; overflow-x:auto; white-space:pre; margin-top:8px;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>📋 Notes d'investissement</h1>
+  <div class="context-row">
+    <select id="ctxClass"></select>
+    <select id="ctxPeriod"></select>
+  </div>
+</header>
+
+<main>
+
+  <!-- SAISIE -->
+  <section id="screen-saisie" class="screen active">
+    <div id="saisieContent"></div>
+  </section>
+
+  <!-- CLASSES -->
+  <section id="screen-classes" class="screen">
+    <div class="card">
+      <h2>Ajouter une classe</h2>
+      <div class="field">
+        <label>Nom de la classe (ex : 5eA)</label>
+        <input type="text" id="newClassName" placeholder="5eA">
+      </div>
+      <button class="btn block" id="btnAddClass">+ Créer la classe</button>
+    </div>
+    <div class="card">
+      <h2>Classes existantes</h2>
+      <div id="classList"></div>
+      <div class="empty-state" id="classEmpty" style="display:none;">Aucune classe pour l'instant.</div>
+      <details class="help" style="margin-top:8px;"><summary>Format des fichiers « Élèves » acceptés</summary>
+        <p class="muted">L'export Pronote (colonne « Élèves » au format NOM Prénom, colonne « Sexe ») est reconnu automatiquement — les autres colonnes du fichier sont ignorées. Un fichier avec des colonnes Nom/Prénom séparées fonctionne aussi.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- STRUCTURE -->
+  <section id="screen-structure" class="screen">
+    <div id="structureContent"></div>
+  </section>
+
+  <!-- EXPORT -->
+  <section id="screen-export" class="screen">
+    <div id="exportContent"></div>
+  </section>
+
+  <!-- DONNEES -->
+  <section id="screen-donnees" class="screen">
+    <div class="card">
+      <h2>Sauvegarde complète</h2>
+      <p class="muted">Exporte toute la base (classes, élèves, structure, notes) dans un fichier. À faire régulièrement, et surtout avant de changer de téléphone/tablette.</p>
+      <button class="btn block" id="btnExportAll">⬇️ Exporter toute la base (.json)</button>
+      <p class="muted" id="lastBackupInfo" style="margin-top:8px;"></p>
+    </div>
+    <div class="card">
+      <h2>Restaurer une sauvegarde</h2>
+      <p class="muted">Remplace <strong>toutes</strong> les données actuelles par celles du fichier importé.</p>
+      <input type="file" id="importAllFile" accept=".json,application/json">
+    </div>
+    <div class="card">
+      <h2 style="color:var(--danger);">Zone danger</h2>
+      <button class="btn danger block" id="btnResetAll">🗑️ Réinitialiser toutes les données</button>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<nav class="bottomnav">
+  <button data-screen="saisie" class="active"><span class="ic">✏️</span>Saisie</button>
+  <button data-screen="classes"><span class="ic">🏫</span>Classes</button>
+  <button data-screen="structure"><span class="ic">📚</span>Structure</button>
+  <button data-screen="export"><span class="ic">📤</span>Export</button>
+  <button data-screen="donnees"><span class="ic">💾</span>Données</button>
+</nav>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================== UTIL ===================== */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function normalize(s){
+  return String(s==null?'':s)
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().trim();
+}
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toast._h);
+  toast._h=setTimeout(function(){ t.classList.remove('show'); },1800);
+}
+function fmtDate(iso){
+  if(!iso) return null;
+  var d=new Date(iso);
+  return d.toLocaleDateString('fr-FR')+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+
+/* ---- CSV parsing (detects , or ; delimiter, handles quotes) ---- */
+function detectDelimiter(text){
+  var firstLine=text.split(/\r\n|\n/)[0]||'';
+  var commas=(firstLine.match(/,/g)||[]).length;
+  var semis=(firstLine.match(/;/g)||[]).length;
+  return semis>commas ? ';' : ',';
+}
+function parseCSV(text, delim){
+  delim = delim || detectDelimiter(text);
+  var rows=[]; var row=[]; var field=''; var inQuotes=false;
+  text = text.replace(/^﻿/,''); // strip BOM
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
+    if(inQuotes){
+      if(c==='"'){
+        if(text[i+1]==='"'){ field+='"'; i++; }
+        else{ inQuotes=false; }
+      } else { field+=c; }
+    } else {
+      if(c==='"'){ inQuotes=true; }
+      else if(c===delim){ row.push(field); field=''; }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else if(c==='\r'){ /* skip */ }
+      else{ field+=c; }
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(function(r){ return r.length>1 || (r.length===1 && r[0].trim()!==''); });
+}
+function toCSV(rows, delim){
+  delim = delim || ';';
+  return rows.map(function(r){
+    return r.map(function(cell){
+      cell = cell==null? '' : String(cell);
+      if(cell.indexOf(delim)>-1 || cell.indexOf('"')>-1 || cell.indexOf('\n')>-1){
+        cell = '"'+cell.replace(/"/g,'""')+'"';
+      }
+      return cell;
+    }).join(delim);
+  }).join('\r\n');
+}
+function downloadText(filename, content, mime, addBom){
+  if(addBom) content = '﻿'+content;
+  var blob = new Blob([content], {type: mime||'text/plain;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },500);
+}
+function copyToClipboard(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ toast('Copié dans le presse-papiers'); })
+      .catch(function(){ fallbackCopy(text); });
+  } else { fallbackCopy(text); }
+}
+function fallbackCopy(text){
+  var ta=document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try{ document.execCommand('copy'); toast('Copié dans le presse-papiers'); }
+  catch(e){ toast('Copie impossible, sélectionnez le texte manuellement'); }
+  document.body.removeChild(ta);
+}
+
+/* ===================== DATA MODEL ===================== */
+var STORAGE_KEY = 'notes_investissement_db_v1';
+var SMILEYS = [
+  {code:'I',  emoji:'😞', label:'I',  val:1},
+  {code:'F',  emoji:'😕', label:'F',  val:2},
+  {code:'S',  emoji:'🙂', label:'S',  val:3},
+  {code:'TS', emoji:'😄', label:'TS', val:4}
+];
+var PERIODS = [
+  {id:'p1', label:'Période 1', sem:1},
+  {id:'p2', label:'Période 2', sem:1},
+  {id:'p3', label:'Période 3', sem:2},
+  {id:'p4', label:'Période 4', sem:2}
+];
+
+var db = null;
+
+function defaultDB(){
+  return {
+    version:1,
+    classes:{},      // id -> {id,name,students:[{id,name}],structure:[...]}
+    grades:{},       // classId -> periodId -> studentId -> activityId -> 'TS'|'S'|'F'|'I'
+    settings:{
+      activeClassId:null,
+      activePeriod:'p1',
+      exportMode:'letter', // 'letter' | 'numeric'
+      numericScale:20,
+      lastBackup:null
+    }
+  };
+}
+
+function loadDB(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){ db = JSON.parse(raw); }
+    else { db = defaultDB(); }
+  }catch(e){
+    console.error('Erreur chargement DB', e);
+    db = defaultDB();
+  }
+  if(!db.settings) db.settings = defaultDB().settings;
+  if(!db.classes) db.classes = {};
+  if(!db.grades) db.grades = {};
+}
+function saveDB(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  }catch(e){
+    console.error('Erreur sauvegarde', e);
+    toast('⚠️ Erreur de sauvegarde locale (stockage plein ?)');
+  }
+}
+
+function getClass(id){ return db.classes[id]; }
+function classList(){ return Object.values(db.classes); }
+function allActivitiesFlat(structure){
+  var out=[];
+  (structure||[]).forEach(function(seq){
+    (seq.objectifs||[]).forEach(function(obj){
+      (obj.activites||[]).forEach(function(act){
+        var code = 'Seq'+(seq.num||'?')+'_Obj'+(obj.num||'?')+'_Act'+(act.num||'?');
+        out.push({id:act.id, code:code, seqNum:seq.num, seqTitre:seq.titre, objNum:obj.num, objTitre:obj.titre, actNum:act.num, actTitre:act.titre});
+      });
+    });
+  });
+  return out;
+}
+function hasAnyGradeAcrossPeriods(classId, studentId, activityId){
+  var perPeriod = db.grades[classId];
+  if(!perPeriod) return false;
+  for(var pid in perPeriod){
+    var s = (perPeriod[pid]||{})[studentId];
+    if(s && s[activityId]) return true;
+  }
+  return false;
+}
+function noteScope(classId){
+  // Activités à prendre en compte pour la note d'investissement :
+  // jusqu'au repère de progression si un repère est défini, sinon toutes les activités.
+  var cls = getClass(classId);
+  var flat = allActivitiesFlat(cls.structure);
+  var minIndex = cls.minActivityId ? flat.findIndex(function(a){ return a.id===cls.minActivityId; }) : -1;
+  return minIndex>=0 ? flat.slice(0, minIndex+1) : flat;
+}
+function progressStatus(classId, studentId){
+  var cls = getClass(classId); if(!cls) return null;
+  var flat = allActivitiesFlat(cls.structure);
+  var minIndex = cls.minActivityId ? flat.findIndex(function(a){ return a.id===cls.minActivityId; }) : -1;
+  if(minIndex<0) return {hasRepere:false};
+  var total = minIndex+1;
+  var done = 0;
+  for(var i=0;i<total;i++){ if(hasAnyGradeAcrossPeriods(classId, studentId, flat[i].id)) done++; }
+  return {hasRepere:true, done:done, total:total, late: done<total, repereActivity:flat[minIndex]};
+}
+function getGrade(classId, periodId, studentId, activityId){
+  var c = db.grades[classId]; if(!c) return undefined;
+  var p = c[periodId]; if(!p) return undefined;
+  var s = p[studentId]; if(!s) return undefined;
+  return s[activityId];
+}
+function setGrade(classId, periodId, studentId, activityId, code){
+  if(!db.grades[classId]) db.grades[classId]={};
+  if(!db.grades[classId][periodId]) db.grades[classId][periodId]={};
+  if(!db.grades[classId][periodId][studentId]) db.grades[classId][periodId][studentId]={};
+  var bucket = db.grades[classId][periodId][studentId];
+  if(bucket[activityId]===code){
+    delete bucket[activityId]; // tap again to clear
+  } else {
+    bucket[activityId]=code;
+  }
+  saveDB();
+}
+function studentGradesForPeriod(classId, periodId, studentId){
+  return (((db.grades[classId]||{})[periodId]||{})[studentId])||{};
+}
+function smileyByCode(code){
+  for(var i=0;i<SMILEYS.length;i++){ if(SMILEYS[i].code===code) return SMILEYS[i]; }
+  return null;
+}
+function computeStudentNote(classId, periodId, studentId){
+  var cls = getClass(classId); if(!cls) return null;
+  var scope = noteScope(classId);
+  if(!scope.length) return {graded:0, total:0, raw:null, letter:null, numeric:null};
+  var g = studentGradesForPeriod(classId, periodId, studentId);
+  var gradedCount = 0;
+  var sum = 0;
+  scope.forEach(function(a){
+    var code = g[a.id];
+    if(code){
+      var s = smileyByCode(code);
+      if(s){ sum += s.val; gradedCount++; }
+    }
+    // activité non cochée pendant cette période -> compte 0 dans la moyenne
+  });
+  if(gradedCount===0) return {graded:0, total:scope.length, raw:null, letter:null, numeric:null};
+  var avg = sum/scope.length; // moyenne sur 0..4, les activités non cochées comptent 0
+  var nearestInt = Math.max(1, Math.min(4, Math.round(avg)));
+  var letterMap = {4:'TS',3:'S',2:'F',1:'I'};
+  var letter = letterMap[nearestInt];
+  var scale = db.settings.numericScale||20;
+  var numeric = Math.round(avg/4*scale); // I=1/4, F=2/4, S=3/4, TS=4/4 du barème ; non coché=0 ; arrondi à l'unité
+  return {graded:gradedCount, total:scope.length, raw:avg, letter:letter, numeric:numeric};
+}
+
+/* ===================== STRUCTURE CSV IMPORT/EXPORT ===================== */
+var STRUCT_HEADERS = ['sequence_num','sequence_titre','objectif_num','objectif_titre','activite_num','activite_titre'];
+function structHeaderIndex(headerRow){
+  var idx={};
+  headerRow.forEach(function(h,i){
+    var n = normalize(h).replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_');
+    STRUCT_HEADERS.forEach(function(key){
+      if(n===key || n===key.replace('sequence','seq') || n.indexOf(key.split('_')[0])===0 && n.indexOf(key.split('_')[1])>-1){
+        idx[key]=i;
+      }
+    });
+  });
+  return idx;
+}
+function parseStructureCSV(text){
+  var rows = parseCSV(text);
+  if(!rows.length) throw new Error('Fichier vide');
+  var idx = structHeaderIndex(rows[0]);
+  var missing = STRUCT_HEADERS.filter(function(k){ return idx[k]===undefined; });
+  var dataRows = rows;
+  if(missing.length===0){
+    dataRows = rows.slice(1); // header detected, skip it
+  } else {
+    // fallback: assume fixed column order seq_num,seq_titre,obj_num,obj_titre,act_num,act_titre
+    idx = {sequence_num:0, sequence_titre:1, objectif_num:2, objectif_titre:3, activite_num:4, activite_titre:5};
+    // if first row looks like text headers (non-numeric first cell), skip it
+    if(rows[0][0] && isNaN(parseFloat(rows[0][0]))){ dataRows = rows.slice(1); }
+  }
+  var seqMap = {}; // num -> seq object
+  var structure = [];
+  dataRows.forEach(function(r){
+    if(!r.length) return;
+    var sNum = (r[idx.sequence_num]||'').trim();
+    var sTitre = (r[idx.sequence_titre]||'').trim();
+    var oNum = (r[idx.objectif_num]||'').trim();
+    var oTitre = (r[idx.objectif_titre]||'').trim();
+    var aNum = (r[idx.activite_num]||'').trim();
+    var aTitre = (r[idx.activite_titre]||'').trim();
+    if(!sNum && !aTitre) return; // skip blank rows
+    var seqKey = sNum+'|'+sTitre;
+    if(!seqMap[seqKey]){
+      var seqObj = {id:uid(), num:sNum, titre:sTitre, objectifs:[]};
+      seqMap[seqKey]=seqObj;
+      structure.push(seqObj);
+    }
+    var seq = seqMap[seqKey];
+    var objKey = oNum+'|'+oTitre;
+    var obj = seq.objectifs.find(function(o){ return (o.num+'|'+o.titre)===objKey; });
+    if(!obj){
+      obj = {id:uid(), num:oNum, titre:oTitre, activites:[]};
+      seq.objectifs.push(obj);
+    }
+    obj.activites.push({id:uid(), num:aNum, titre:aTitre});
+  });
+  return structure;
+}
+function structureToCSV(structure){
+  var rows=[STRUCT_HEADERS.map(function(h){
+    return {sequence_num:'Sequence_num',sequence_titre:'Sequence_titre',objectif_num:'Objectif_num',objectif_titre:'Objectif_titre',activite_num:'Activite_num',activite_titre:'Activite_titre'}[h];
+  })];
+  (structure||[]).forEach(function(seq){
+    (seq.objectifs||[]).forEach(function(obj){
+      (obj.activites||[]).forEach(function(act){
+        rows.push([seq.num,seq.titre,obj.num,obj.titre,act.num,act.titre]);
+      });
+    });
+  });
+  return toCSV(rows,';');
+}
+function sampleStructureCSV(){
+  var rows=[
+    ['Sequence_num','Sequence_titre','Objectif_num','Objectif_titre','Activite_num','Activite_titre'],
+    ['1','Les nombres relatifs','1','Comparer des relatifs','1','Ranger des nombres relatifs'],
+    ['1','Les nombres relatifs','1','Comparer des relatifs','2','Placer sur une droite graduée'],
+    ['1','Les nombres relatifs','2','Additionner des relatifs','1','Somme de deux relatifs'],
+    ['2','Fractions','1','Comparer des fractions','1','Mettre au même dénominateur']
+  ];
+  return toCSV(rows,';');
+}
+
+/* ===================== ROSTER (ELEVES) CSV IMPORT ===================== */
+// Pronote exporte les noms sous la forme "NOM(S) EN MAJUSCULES Prénom".
+// On sépare nom/prénom via la casse : les mots tout en majuscules forment le nom,
+// le premier mot à casse mixte (et la suite) forme le prénom.
+function splitNomPrenom(raw){
+  raw = (raw||'').trim();
+  if(!raw) return {nom:'', prenom:''};
+  var words = raw.split(/\s+/);
+  function isUpperWord(w){
+    var letters = w.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g,'');
+    if(!letters) return true;
+    return letters === letters.toUpperCase() && letters !== letters.toLowerCase();
+  }
+  var splitIdx = words.length;
+  for(var i=0;i<words.length;i++){
+    if(!isUpperWord(words[i])){ splitIdx = i; break; }
+  }
+  if(splitIdx===0) splitIdx = 1;
+  if(splitIdx>=words.length) splitIdx = words.length-1;
+  return { nom: words.slice(0,splitIdx).join(' '), prenom: words.slice(splitIdx).join(' ') };
+}
+function genreFromValue(v){
+  var n = normalize(v);
+  if(/^m/.test(n)) return 'M';
+  if(/^f/.test(n)) return 'F';
+  return '';
+}
+function parseRosterCSV(text){
+  var rows = parseCSV(text);
+  if(!rows.length) return [];
+  var header = rows[0].map(normalize);
+  var eleveIdx = header.findIndex(function(h){ return /^eleves?$/.test(h.replace(/[^a-z]/g,'')); });
+  var nomIdx = header.findIndex(function(h){ return /^nom$/.test(h); });
+  var prenomIdx = header.findIndex(function(h){ return /^pr[ée]nom$/.test(h); });
+  var nameIdx = header.findIndex(function(h){ return /^(nom.?prenom|nom.?complet|eleve|name|nom_prenom)$/.test(h.replace(/[^a-z]/g,'')); });
+  var sexeIdx = header.findIndex(function(h){ return /^(sexe|genre)$/.test(h); });
+  var students = [];
+
+  if(eleveIdx>-1){
+    // Format Pronote : colonne "Élèves" = "NOM Prénom", éventuellement colonne "Sexe"
+    for(var i=1;i<rows.length;i++){
+      var r=rows[i]; if(!r.join('').trim()) continue;
+      var raw = (r[eleveIdx]||'').trim();
+      if(!raw) continue;
+      var np = splitNomPrenom(raw);
+      var display = (np.prenom+' '+np.nom).trim() || raw;
+      var genre = sexeIdx>-1 ? genreFromValue(r[sexeIdx]) : '';
+      students.push({id:uid(), name:display, raw:raw, nom:np.nom, prenom:np.prenom, genre:genre});
+    }
+  } else if(nomIdx>-1 || prenomIdx>-1 || nameIdx>-1){
+    for(var k=1;k<rows.length;k++){
+      var r2=rows[k]; if(!r2.join('').trim()) continue;
+      var full, nomV='', prenomV='';
+      if(nomIdx>-1 && prenomIdx>-1){ nomV=(r2[nomIdx]||'').trim(); prenomV=(r2[prenomIdx]||'').trim(); full = prenomV+' '+nomV; }
+      else if(nomIdx>-1){ nomV=(r2[nomIdx]||'').trim(); full = nomV; }
+      else { full = (r2[nameIdx]||'').trim(); }
+      full = full.trim();
+      var genre2 = sexeIdx>-1 ? genreFromValue(r2[sexeIdx]) : '';
+      if(full) students.push({id:uid(), name:full, raw:full, nom:nomV, prenom:prenomV, genre:genre2});
+    }
+  } else {
+    // Aucun en-tête reconnu : on rassemble toutes les colonnes non vides de chaque ligne
+    var looksHeader = rows[0].some(function(c){ return /^(nom|prenom|classe|id|eleve|name)/.test(normalize(c)); });
+    var start = looksHeader ? 1 : 0;
+    for(var j=start;j<rows.length;j++){
+      var rr=rows[j];
+      var full2 = rr.filter(function(c){return c && c.trim();}).join(' ').trim();
+      if(full2) students.push({id:uid(), name:full2, raw:full2, nom:'', prenom:'', genre:''});
+    }
+  }
+  return students;
+}
+
+/* ===================== EXPORT NOTES CSV ===================== */
+function buildExportRows(classId, periodId){
+  var cls = getClass(classId);
+  var rows = [];
+  (cls.students||[]).forEach(function(st){
+    var note = computeStudentNote(classId, periodId, st.id);
+    var value = '';
+    if(note && note.graded>0){
+      value = db.settings.exportMode==='numeric' ? note.numeric : note.letter;
+    }
+    rows.push({name:st.raw||st.name, value:value, graded:note?note.graded:0, total:note?note.total:0});
+  });
+  return rows;
+}
+
+/* ===================== NAVIGATION ===================== */
+var currentScreen = 'saisie';
+var saisieState = {mode:'list', studentId:null, search:''};
+
+function showScreen(name){
+  currentScreen = name;
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelectorAll('.bottomnav button').forEach(function(b){
+    b.classList.toggle('active', b.dataset.screen===name);
+  });
+  renderCurrentScreen();
+}
+function renderCurrentScreen(){
+  if(currentScreen==='saisie') renderSaisie();
+  else if(currentScreen==='classes') renderClasses();
+  else if(currentScreen==='structure') renderStructure();
+  else if(currentScreen==='export') renderExport();
+  else if(currentScreen==='donnees') renderDonnees();
+}
+
+function renderTopContext(){
+  var classSel = document.getElementById('ctxClass');
+  var periodSel = document.getElementById('ctxPeriod');
+  var classes = classList();
+  classSel.innerHTML = classes.length
+    ? classes.map(function(c){ return '<option value="'+c.id+'">'+escapeHtml(c.name)+'</option>'; }).join('')
+    : '<option value="">Aucune classe</option>';
+  if(!db.settings.activeClassId || !db.classes[db.settings.activeClassId]){
+    db.settings.activeClassId = classes.length ? classes[0].id : null;
+  }
+  classSel.value = db.settings.activeClassId || '';
+  periodSel.innerHTML = PERIODS.map(function(p){
+    return '<option value="'+p.id+'">'+p.label+' (S'+p.sem+')</option>';
+  }).join('');
+  periodSel.value = db.settings.activePeriod;
+}
+
+/* ===================== SAISIE ===================== */
+function renderSaisie(){
+  var container = document.getElementById('saisieContent');
+  var classId = db.settings.activeClassId;
+  if(!classId || !db.classes[classId]){
+    container.innerHTML = '<div class="empty-state">Créez d\'abord une classe dans l\'onglet <strong>Classes</strong>.</div>';
+    return;
+  }
+  var cls = db.classes[classId];
+  var periodId = db.settings.activePeriod;
+  if(!cls.students || !cls.students.length){
+    container.innerHTML = '<div class="empty-state">Importez la liste des élèves de cette classe dans l\'onglet <strong>Classes</strong>.</div>';
+    return;
+  }
+  if(!cls.structure || !cls.structure.length){
+    container.innerHTML = '<div class="empty-state">Configurez les séquences/activités de cette classe dans l\'onglet <strong>Structure</strong>.</div>';
+    return;
+  }
+  if(saisieState.mode==='grading' && saisieState.studentId && cls.students.some(function(s){return s.id===saisieState.studentId;})){
+    container.innerHTML = renderGradingView(classId, periodId, saisieState.studentId);
+    wireGradingView(classId, periodId);
+  } else {
+    saisieState.mode='list';
+    container.innerHTML = renderStudentListView(classId, periodId);
+    wireStudentListView(classId, periodId);
+  }
+}
+
+function renderStudentListView(classId, periodId){
+  var cls = getClass(classId);
+  var search = normalize(saisieState.search||'');
+  var items = cls.students.filter(function(s){ return !search || normalize(s.name).indexOf(search)>-1; });
+  var tiles = items.map(function(s){
+    var note = computeStudentNote(classId, periodId, s.id);
+    var noteVal = note.graded>0 ? (Math.round(note.raw/4*20)+'/20') : '—';
+    var genderClass = s.genre==='M' ? 'gender-m' : (s.genre==='F' ? 'gender-f' : 'gender-x');
+    var prog = progressStatus(classId, s.id);
+    var lateBadge = (prog && prog.hasRepere && prog.late) ? '<span class="tile-late" title="En retard sur le repère de progression">⚠️</span>' : '';
+    return '<div class="tile '+genderClass+'" data-sid="'+s.id+'">'+
+      '<div class="tile-top"><span class="tile-note">'+escapeHtml(String(noteVal))+'</span>'+lateBadge+'</div>'+
+      '<div class="tile-name">'+escapeHtml(s.name)+'</div>'+
+      '<div class="tile-sub">'+note.graded+'/'+note.total+' activités</div>'+
+    '</div>';
+  }).join('');
+  return '<div class="card">'+
+    '<div class="field"><input type="text" id="studentSearch" placeholder="Rechercher un élève…" value="'+escapeHtml(saisieState.search||'')+'"></div>'+
+    '</div>'+
+    '<div class="tile-grid">'+
+    (tiles || '<div class="empty-state">Aucun élève trouvé.</div>')+
+    '</div>';
+}
+function wireStudentListView(classId, periodId){
+  var search = document.getElementById('studentSearch');
+  if(search){
+    search.addEventListener('input', function(){
+      saisieState.search = search.value;
+      var pos = search.selectionStart;
+      renderSaisie();
+      var s2 = document.getElementById('studentSearch');
+      if(s2){ s2.focus(); s2.setSelectionRange(pos,pos); }
+    });
+  }
+  document.querySelectorAll('#saisieContent .tile').forEach(function(el){
+    el.addEventListener('click', function(){
+      saisieState.mode='grading';
+      saisieState.studentId = el.dataset.sid;
+      renderSaisie();
+    });
+  });
+}
+
+function renderGradingView(classId, periodId, studentId){
+  var cls = getClass(classId);
+  var students = cls.students;
+  var idx = students.findIndex(function(s){ return s.id===studentId; });
+  var student = students[idx];
+  var grades = studentGradesForPeriod(classId, periodId, studentId);
+  var flat = allActivitiesFlat(cls.structure);
+  var minIndex = cls.minActivityId ? flat.findIndex(function(a){ return a.id===cls.minActivityId; }) : -1;
+
+  var actHtml = flat.map(function(act, i){
+    var current = grades[act.id];
+    var doneEver = hasAnyGradeAcrossPeriods(classId, studentId, act.id);
+    var rowStatus = '';
+    if(minIndex>=0 && i<=minIndex && !doneEver) rowStatus = ' row-late';
+    else if(doneEver) rowStatus = ' row-done';
+    var btns = SMILEYS.map(function(sm){
+      var sel = current===sm.code ? ' sel-'+sm.code : '';
+      return '<button class="smiley-btn'+sel+'" data-act="'+act.id+'" data-code="'+sm.code+'">'+
+        '<span>'+sm.emoji+'</span><span class="lbl">'+sm.label+'</span></button>';
+    }).join('');
+    return '<div class="act-row'+rowStatus+'">'+
+      '<div class="act-title"><span class="code">'+escapeHtml(act.code)+'</span>'+escapeHtml(act.actTitre||'')+'</div>'+
+      '<div class="smiley-group">'+btns+'</div>'+
+    '</div>';
+  }).join('') || '<div class="empty-state">Aucune activité configurée.</div>';
+
+  var repereHtml = '';
+  if(minIndex>=0){
+    var ps = progressStatus(classId, studentId);
+    var pct = ps.total ? Math.round((ps.done/ps.total)*100) : 0;
+    repereHtml = '<div class="repere-bar '+(ps.late?'late':'ok')+'">'+
+      '<div class="repere-fill" style="width:'+pct+'%"></div>'+
+      '<div class="repere-label">Repère '+escapeHtml(ps.repereActivity.code)+' — '+ps.done+'/'+ps.total+(ps.late?' (en retard)':' (à jour)')+'</div>'+
+    '</div>';
+  }
+
+  return '<div class="card">'+
+    '<div class="studentbar">'+
+      '<button class="navbtn" id="btnPrevStudent" '+(idx<=0?'disabled':'')+'>◀</button>'+
+      '<button class="navbtn" id="btnBackList" title="Retour à la liste">☰</button>'+
+      '<div class="name">'+escapeHtml(student.name)+'</div>'+
+      '<button class="navbtn" id="btnBackList2" title="Retour à la liste" style="visibility:hidden;">☰</button>'+
+      '<button class="navbtn" id="btnNextStudent" '+(idx>=students.length-1?'disabled':'')+'>▶</button>'+
+    '</div>'+
+    repereHtml+
+    '<button class="btn secondary block" id="btnBackListMain" style="margin-top:10px;">← Retour à la liste des élèves</button>'+
+  '</div>'+
+  '<div class="card">'+actHtml+'</div>';
+}
+function wireGradingView(classId, periodId){
+  document.querySelectorAll('#saisieContent .smiley-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      setGrade(classId, periodId, saisieState.studentId, btn.dataset.act, btn.dataset.code);
+      renderSaisie();
+      toast('Enregistré');
+    });
+  });
+  var cls = getClass(classId);
+  var idx = cls.students.findIndex(function(s){ return s.id===saisieState.studentId; });
+  var prev = document.getElementById('btnPrevStudent');
+  var next = document.getElementById('btnNextStudent');
+  if(prev) prev.addEventListener('click', function(){ if(idx>0){ saisieState.studentId=cls.students[idx-1].id; renderSaisie(); } });
+  if(next) next.addEventListener('click', function(){ if(idx<cls.students.length-1){ saisieState.studentId=cls.students[idx+1].id; renderSaisie(); } });
+  ['btnBackList','btnBackListMain'].forEach(function(bid){
+    var b=document.getElementById(bid);
+    if(b) b.addEventListener('click', function(){ saisieState.mode='list'; renderSaisie(); });
+  });
+}
+
+/* ===================== CLASSES ===================== */
+function renderClasses(){
+  var listEl = document.getElementById('classList');
+  var emptyEl = document.getElementById('classEmpty');
+  var classes = classList();
+  emptyEl.style.display = classes.length ? 'none' : 'block';
+  listEl.innerHTML = classes.map(function(c){
+    var nbAct = allActivitiesFlat(c.structure).length;
+    return '<div class="class-item">'+
+      '<div><strong>'+escapeHtml(c.name)+'</strong><br>'+
+      '<span class="muted">'+(c.students?c.students.length:0)+' élève(s) · '+nbAct+' activité(s)</span></div>'+
+      '<div class="row" style="gap:6px;">'+
+        '<button class="btn small secondary" data-act="roster" data-id="'+c.id+'">📥 Élèves</button>'+
+        '<button class="btn small secondary" data-act="rename" data-id="'+c.id+'">✏️</button>'+
+        '<button class="btn small danger" data-act="delete" data-id="'+c.id+'">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  listEl.querySelectorAll('button[data-act="delete"]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var c = getClass(b.dataset.id);
+      if(confirm('Supprimer la classe "'+c.name+'" et toutes ses notes ?')){
+        delete db.classes[b.dataset.id];
+        delete db.grades[b.dataset.id];
+        if(db.settings.activeClassId===b.dataset.id) db.settings.activeClassId=null;
+        saveDB(); renderTopContext(); renderClasses();
+        toast('Classe supprimée');
+      }
+    });
+  });
+  listEl.querySelectorAll('button[data-act="rename"]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var c = getClass(b.dataset.id);
+      var name = prompt('Nouveau nom de la classe :', c.name);
+      if(name && name.trim()){ c.name=name.trim(); saveDB(); renderTopContext(); renderClasses(); }
+    });
+  });
+  listEl.querySelectorAll('button[data-act="roster"]').forEach(function(b){
+    b.addEventListener('click', function(){ openRosterImport(b.dataset.id); });
+  });
+}
+
+function openRosterImport(classId){
+  var input = document.createElement('input');
+  input.type='file'; input.accept='.csv,text/csv';
+  input.addEventListener('change', function(){
+    var file = input.files[0]; if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        var students = parseRosterCSV(e.target.result);
+        if(!students.length){ toast('Aucun élève détecté dans ce fichier'); return; }
+        var cls = getClass(classId);
+        var mode = cls.students && cls.students.length
+          ? confirm(cls.students.length+' élève(s) déjà présents. OK = remplacer la liste, Annuler = ajouter à la suite.')
+          : true;
+        if(mode){ cls.students = students; }
+        else { cls.students = (cls.students||[]).concat(students); }
+        saveDB(); renderClasses(); renderTopContext();
+        toast(students.length+' élève(s) importé(s)');
+      }catch(err){
+        alert('Erreur de lecture du fichier CSV : '+err.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  });
+  input.click();
+}
+
+/* ===================== STRUCTURE ===================== */
+function renderStructure(){
+  var container = document.getElementById('structureContent');
+  var classId = db.settings.activeClassId;
+  if(!classId || !db.classes[classId]){
+    container.innerHTML = '<div class="empty-state">Créez d\'abord une classe dans l\'onglet <strong>Classes</strong>.</div>';
+    return;
+  }
+  var cls = getClass(classId);
+  var otherClasses = classList().filter(function(c){ return c.id!==classId; });
+
+  var treeHtml = (cls.structure||[]).map(function(seq){
+    var objHtml = (seq.objectifs||[]).map(function(obj){
+      var actHtml = (obj.activites||[]).map(function(act){
+        var code = 'Seq'+(seq.num||'?')+'_Obj'+(obj.num||'?')+'_Act'+(act.num||'?');
+        var isRepere = cls.minActivityId===act.id;
+        return '<div class="act-row config-row'+(isRepere?' row-repere':'')+'">'+
+          '<div class="config-row-title"><span class="code">'+escapeHtml(code)+'</span> '+escapeHtml(act.titre||'')+'</div>'+
+          '<div class="config-row-actions">'+
+            (isRepere
+              ? '<button class="btn small" style="background:#e69a1f;" data-clear-repere="1">📍 Retirer le repère</button>'
+              : '<button class="btn small secondary" data-set-repere="'+act.id+'">📍 Repère</button>')+
+            '<button class="btn small danger" data-del-act="'+seq.id+'|'+obj.id+'|'+act.id+'">✕</button>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+      return '<div class="obj-header config-row"><div class="config-row-title">Obj. '+escapeHtml(obj.num||'')+' — '+escapeHtml(obj.titre||'')+'</div>'+
+        '<div class="config-row-actions"><button class="btn small danger" data-del-obj="'+seq.id+'|'+obj.id+'">✕ objectif</button></div></div>'+actHtml;
+    }).join('');
+    return '<div class="seq-block">'+
+      '<div class="seq-header config-row"><div class="config-row-title">Séq. '+escapeHtml(seq.num||'')+' — '+escapeHtml(seq.titre||'')+'</div>'+
+      '<div class="config-row-actions"><button class="btn small danger" data-del-seq="'+seq.id+'">✕ séquence</button></div></div>'+
+      objHtml+
+    '</div>';
+  }).join('') || '<div class="empty-state">Aucune séquence configurée pour cette classe.</div>';
+
+  container.innerHTML =
+    '<div class="card">'+
+      '<h2>Structure de « '+escapeHtml(cls.name)+' »</h2>'+
+      '<div class="row wrap">'+
+        '<button class="btn secondary small" id="btnImportStruct">📥 Importer CSV</button>'+
+        '<button class="btn secondary small" id="btnSampleStruct">📄 Exemple CSV</button>'+
+        (otherClasses.length ? '<button class="btn secondary small" id="btnCopyStruct">📋 Copier depuis une autre classe</button>' : '')+
+        '<button class="btn danger small" id="btnClearStruct">🗑️ Vider</button>'+
+      '</div>'+
+      '<details class="help"><summary>Format du fichier CSV attendu</summary>'+
+        '<pre>Sequence_num;Sequence_titre;Objectif_num;Objectif_titre;Activite_num;Activite_titre\n1;Les nombres relatifs;1;Comparer des relatifs;1;Ranger des nombres relatifs\n1;Les nombres relatifs;1;Comparer des relatifs;2;Placer sur une droite graduée</pre>'+
+        '<p class="muted">Une ligne par activité. Les colonnes Séquence/Objectif se répètent sur chaque ligne. Séparateur point-virgule ou virgule, avec ou sans en-tête.</p>'+
+      '</details>'+
+      '<p class="muted" style="margin-top:8px;">📍 Le <strong>repère</strong> marque l\'activité où la classe devrait en être. Dans la fiche d\'un élève, tout ce qui précède ce repère et n\'est pas encore fait est signalé « en retard ».</p>'+
+    '</div>'+
+    '<div class="card">'+
+      '<h2>Ajouter manuellement</h2>'+
+      '<h3>Nouvelle séquence</h3>'+
+      '<div class="inline-form">'+
+        '<input type="text" id="newSeqNum" placeholder="N°" style="max-width:60px;">'+
+        '<input type="text" id="newSeqTitre" placeholder="Titre de la séquence">'+
+        '<button class="btn small" id="btnAddSeq">+ Ajouter</button>'+
+      '</div>'+
+      (cls.structure && cls.structure.length ? (
+        '<hr class="sep"><h3>Nouvel objectif</h3>'+
+        '<div class="inline-form">'+
+          '<select id="newObjSeq">'+cls.structure.map(function(s){return '<option value="'+s.id+'">Séq. '+escapeHtml(s.num)+' — '+escapeHtml(s.titre)+'</option>';}).join('')+'</select>'+
+          '<input type="text" id="newObjNum" placeholder="N°" style="max-width:60px;">'+
+          '<input type="text" id="newObjTitre" placeholder="Titre de l\'objectif">'+
+          '<button class="btn small" id="btnAddObj">+ Ajouter</button>'+
+        '</div>'+
+        '<hr class="sep"><h3>Nouvelle activité</h3>'+
+        '<div class="inline-form">'+
+          '<select id="newActObj">'+cls.structure.flatMap(function(s){ return (s.objectifs||[]).map(function(o){ return '<option value="'+o.id+'">Séq.'+escapeHtml(s.num)+' Obj.'+escapeHtml(o.num)+' — '+escapeHtml(o.titre)+'</option>'; }); }).join('')+'</select>'+
+          '<input type="text" id="newActNum" placeholder="N°" style="max-width:60px;">'+
+          '<input type="text" id="newActTitre" placeholder="Titre de l\'activité">'+
+          '<button class="btn small" id="btnAddAct">+ Ajouter</button>'+
+        '</div>'
+      ) : '<p class="muted">Ajoutez d\'abord une séquence.</p>')+
+    '</div>'+
+    '<div class="card">'+
+      '<h2>Arborescence actuelle</h2>'+
+      treeHtml+
+    '</div>';
+
+  wireStructureEvents(classId);
+}
+
+function wireStructureEvents(classId){
+  var cls = getClass(classId);
+  var btnImport = document.getElementById('btnImportStruct');
+  if(btnImport) btnImport.addEventListener('click', function(){
+    var input=document.createElement('input');
+    input.type='file'; input.accept='.csv,text/csv';
+    input.addEventListener('change', function(){
+      var file=input.files[0]; if(!file) return;
+      var reader=new FileReader();
+      reader.onload=function(e){
+        try{
+          var structure = parseStructureCSV(e.target.result);
+          if(!structure.length){ toast('Aucune activité détectée'); return; }
+          if(cls.structure && cls.structure.length && !confirm('Remplacer la structure actuelle de cette classe ?')) return;
+          cls.structure = structure;
+          cls.minActivityId = null;
+          saveDB(); renderStructure();
+          toast('Structure importée');
+        }catch(err){ alert('Erreur import CSV : '+err.message); }
+      };
+      reader.readAsText(file,'UTF-8');
+    });
+    input.click();
+  });
+  var btnSample = document.getElementById('btnSampleStruct');
+  if(btnSample) btnSample.addEventListener('click', function(){ downloadText('exemple_structure.csv', sampleStructureCSV(), 'text/csv;charset=utf-8', true); });
+
+  var btnCopy = document.getElementById('btnCopyStruct');
+  if(btnCopy) btnCopy.addEventListener('click', function(){
+    var others = classList().filter(function(c){return c.id!==classId;});
+    var opts = others.map(function(c,i){ return (i+1)+'. '+c.name; }).join('\n');
+    var choice = prompt('Copier la structure de quelle classe ?\n'+opts+'\n\nTapez le numéro :');
+    var i = parseInt(choice,10)-1;
+    if(isNaN(i) || !others[i]) return;
+    if(cls.structure && cls.structure.length && !confirm('Remplacer la structure actuelle par celle de "'+others[i].name+'" ?')) return;
+    cls.structure = JSON.parse(JSON.stringify(others[i].structure||[]));
+    // regenerate ids to keep grades independent per class
+    (cls.structure||[]).forEach(function(seq){ seq.id=uid(); (seq.objectifs||[]).forEach(function(o){ o.id=uid(); (o.activites||[]).forEach(function(a){ a.id=uid(); }); }); });
+    cls.minActivityId = null;
+    saveDB(); renderStructure();
+    toast('Structure copiée depuis "'+others[i].name+'"');
+  });
+
+  var btnClear = document.getElementById('btnClearStruct');
+  if(btnClear) btnClear.addEventListener('click', function(){
+    if(confirm('Vider toute la structure de cette classe ? Les notes déjà saisies resteront en mémoire mais ne seront plus visibles.')){
+      cls.structure = []; cls.minActivityId = null; saveDB(); renderStructure();
+    }
+  });
+
+  var btnAddSeq = document.getElementById('btnAddSeq');
+  if(btnAddSeq) btnAddSeq.addEventListener('click', function(){
+    var num=document.getElementById('newSeqNum').value.trim();
+    var titre=document.getElementById('newSeqTitre').value.trim();
+    if(!titre){ toast('Titre requis'); return; }
+    if(!cls.structure) cls.structure=[];
+    cls.structure.push({id:uid(), num:num, titre:titre, objectifs:[]});
+    saveDB(); renderStructure();
+  });
+  var btnAddObj = document.getElementById('btnAddObj');
+  if(btnAddObj) btnAddObj.addEventListener('click', function(){
+    var seqId=document.getElementById('newObjSeq').value;
+    var num=document.getElementById('newObjNum').value.trim();
+    var titre=document.getElementById('newObjTitre').value.trim();
+    if(!titre){ toast('Titre requis'); return; }
+    var seq = cls.structure.find(function(s){return s.id===seqId;});
+    if(seq){ seq.objectifs.push({id:uid(), num:num, titre:titre, activites:[]}); saveDB(); renderStructure(); }
+  });
+  var btnAddAct = document.getElementById('btnAddAct');
+  if(btnAddAct) btnAddAct.addEventListener('click', function(){
+    var objId=document.getElementById('newActObj').value;
+    var num=document.getElementById('newActNum').value.trim();
+    var titre=document.getElementById('newActTitre').value.trim();
+    if(!titre){ toast('Titre requis'); return; }
+    var found=null;
+    cls.structure.forEach(function(s){ var o=s.objectifs.find(function(o){return o.id===objId;}); if(o) found=o; });
+    if(found){ found.activites.push({id:uid(), num:num, titre:titre}); saveDB(); renderStructure(); }
+  });
+
+  document.querySelectorAll('[data-del-seq]').forEach(function(b){
+    b.addEventListener('click', function(){
+      if(!confirm('Supprimer cette séquence et son contenu ?')) return;
+      cls.structure = cls.structure.filter(function(s){return s.id!==b.dataset.delSeq;});
+      saveDB(); renderStructure();
+    });
+  });
+  document.querySelectorAll('[data-del-obj]').forEach(function(b){
+    b.addEventListener('click', function(){
+      if(!confirm('Supprimer cet objectif et son contenu ?')) return;
+      var parts=b.dataset.delObj.split('|');
+      var seq=cls.structure.find(function(s){return s.id===parts[0];});
+      if(seq) seq.objectifs = seq.objectifs.filter(function(o){return o.id!==parts[1];});
+      saveDB(); renderStructure();
+    });
+  });
+  document.querySelectorAll('[data-del-act]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var parts=b.dataset.delAct.split('|');
+      var seq=cls.structure.find(function(s){return s.id===parts[0];});
+      var obj=seq && seq.objectifs.find(function(o){return o.id===parts[1];});
+      if(obj) obj.activites = obj.activites.filter(function(a){return a.id!==parts[2];});
+      if(cls.minActivityId===parts[2]) cls.minActivityId=null;
+      saveDB(); renderStructure();
+    });
+  });
+  document.querySelectorAll('[data-set-repere]').forEach(function(b){
+    b.addEventListener('click', function(){
+      cls.minActivityId = b.dataset.setRepere;
+      saveDB(); renderStructure();
+      toast('Repère de progression défini');
+    });
+  });
+  document.querySelectorAll('[data-clear-repere]').forEach(function(b){
+    b.addEventListener('click', function(){
+      cls.minActivityId = null;
+      saveDB(); renderStructure();
+    });
+  });
+}
+
+/* ===================== EXPORT ===================== */
+function renderExport(){
+  var container = document.getElementById('exportContent');
+  var classId = db.settings.activeClassId;
+  if(!classId || !db.classes[classId]){
+    container.innerHTML = '<div class="empty-state">Sélectionnez une classe en haut de l\'écran.</div>';
+    return;
+  }
+  var periodId = db.settings.activePeriod;
+  var cls = getClass(classId);
+  var rows = buildExportRows(classId, periodId);
+  var periodLabel = PERIODS.find(function(p){return p.id===periodId;}).label;
+
+  var tableRows = rows.map(function(r){
+    return '<tr><td>'+escapeHtml(r.name)+'</td><td>'+(r.value!==''?escapeHtml(String(r.value)):'<span class="muted">—</span>')+'</td><td class="muted">'+r.graded+'/'+r.total+'</td></tr>';
+  }).join('');
+
+  container.innerHTML =
+    '<div class="card">'+
+      '<h2>Export « '+escapeHtml(cls.name)+' » — '+periodLabel+'</h2>'+
+      '<div class="field"><label>Format de la note exportée</label>'+
+        '<select id="exportMode">'+
+          '<option value="letter"'+(db.settings.exportMode==='letter'?' selected':'')+'>Lettre dominante (TS / S / F / I)</option>'+
+          '<option value="numeric"'+(db.settings.exportMode==='numeric'?' selected':'')+'>Note chiffrée</option>'+
+        '</select>'+
+      '</div>'+
+      (db.settings.exportMode==='numeric' ?
+        '<div class="field"><label>Barème</label>'+
+          '<select id="exportScale">'+
+            [20,10,4].map(function(v){ return '<option value="'+v+'"'+(db.settings.numericScale===v?' selected':'')+'>Sur '+v+'</option>'; }).join('')+
+          '</select>'+
+        '</div>' : '')+
+      '<div class="row wrap">'+
+        '<button class="btn" id="btnDownloadCsv">⬇️ Télécharger CSV (Nom;Note)</button>'+
+        '<button class="btn secondary" id="btnCopyValues">📋 Copier juste les notes (ordre de la liste)</button>'+
+      '</div>'+
+      '<p class="muted" style="margin-top:8px;">« Copier juste les notes » copie une valeur par ligne, dans l\'ordre des élèves de la classe — pratique pour un collage direct dans une colonne Pronote.</p>'+
+      '<details class="help" style="margin-top:8px;"><summary>Comment la note est calculée</summary>'+
+        '<p class="muted">Moyenne sur les activités jusqu\'au repère de progression (Structure), ou sur toutes les activités si aucun repère n\'est défini. Pour la période sélectionnée : TS = plein barème, S = 3/4, F = 1/2, I = 1/4, et une activité non cochée compte 0 (sur '+ (db.settings.exportMode==='numeric' ? db.settings.numericScale : 20) +'&nbsp;: TS='+(db.settings.exportMode==='numeric'?db.settings.numericScale:20)+', S='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.75)+', F='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.5)+', I='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.25)+', non coché=0). Chaque période repart de zéro : une activité cochée lors d\'une période précédente ne compte pas si elle n\'est pas recochée pendant la période en cours.</p>'+
+      '</details>'+
+    '</div>'+
+    '<div class="card">'+
+      '<table class="simple"><thead><tr><th>Élève</th><th>Note</th><th>Activités notées</th></tr></thead><tbody>'+tableRows+'</tbody></table>'+
+    '</div>';
+
+  document.getElementById('exportMode').addEventListener('change', function(e){
+    db.settings.exportMode = e.target.value; saveDB(); renderExport();
+  });
+  var scaleSel = document.getElementById('exportScale');
+  if(scaleSel) scaleSel.addEventListener('change', function(e){
+    db.settings.numericScale = parseInt(e.target.value,10); saveDB(); renderExport();
+  });
+  document.getElementById('btnDownloadCsv').addEventListener('click', function(){
+    var csvRows = [['Nom','Note']].concat(rows.map(function(r){ return [r.name, r.value]; }));
+    downloadText('notes_'+cls.name.replace(/[^a-z0-9]+/gi,'_')+'_'+periodId+'.csv', toCSV(csvRows,';'), 'text/csv;charset=utf-8', true);
+  });
+  document.getElementById('btnCopyValues').addEventListener('click', function(){
+    var text = rows.map(function(r){ return r.value; }).join('\n');
+    copyToClipboard(text);
+  });
+}
+
+/* ===================== DONNEES ===================== */
+function renderDonnees(){
+  var info = document.getElementById('lastBackupInfo');
+  info.textContent = db.settings.lastBackup ? ('Dernière sauvegarde exportée : '+fmtDate(db.settings.lastBackup)) : 'Aucune sauvegarde exportée pour l\'instant.';
+}
+function wireDonneesStatic(){
+  document.getElementById('btnExportAll').addEventListener('click', function(){
+    db.settings.lastBackup = new Date().toISOString();
+    saveDB();
+    downloadText('sauvegarde_notes_investissement_'+new Date().toISOString().slice(0,10)+'.json', JSON.stringify(db,null,2), 'application/json');
+    renderDonnees();
+  });
+  document.getElementById('importAllFile').addEventListener('change', function(e){
+    var file = e.target.files[0]; if(!file) return;
+    if(!confirm('Ceci va REMPLACER toutes les données actuelles par celles du fichier. Continuer ?')){ e.target.value=''; return; }
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      try{
+        var imported = JSON.parse(ev.target.result);
+        if(!imported || typeof imported!=='object' || !imported.classes){ throw new Error('Fichier non reconnu'); }
+        db = imported;
+        if(!db.settings) db.settings = defaultDB().settings;
+        saveDB();
+        renderTopContext(); renderCurrentScreen();
+        toast('Sauvegarde restaurée');
+      }catch(err){ alert('Erreur d\'import : '+err.message); }
+      e.target.value='';
+    };
+    reader.readAsText(file,'UTF-8');
+  });
+  document.getElementById('btnResetAll').addEventListener('click', function(){
+    if(confirm('Supprimer DÉFINITIVEMENT toutes les classes, élèves et notes ?') && confirm('Dernière confirmation : tout effacer ?')){
+      db = defaultDB(); saveDB(); renderTopContext(); renderCurrentScreen();
+      toast('Toutes les données ont été réinitialisées');
+    }
+  });
+}
+
+/* ===================== GLOBAL WIRING / INIT ===================== */
+function wireGlobal(){
+  document.querySelectorAll('nav.bottomnav button').forEach(function(b){
+    b.addEventListener('click', function(){ showScreen(b.dataset.screen); });
+  });
+  document.getElementById('ctxClass').addEventListener('change', function(e){
+    db.settings.activeClassId = e.target.value || null;
+    saisieState = {mode:'list', studentId:null, search:''};
+    saveDB(); renderCurrentScreen();
+  });
+  document.getElementById('ctxPeriod').addEventListener('change', function(e){
+    db.settings.activePeriod = e.target.value;
+    saveDB(); renderCurrentScreen();
+  });
+  document.getElementById('btnAddClass').addEventListener('click', function(){
+    var input = document.getElementById('newClassName');
+    var name = input.value.trim();
+    if(!name){ toast('Entrez un nom de classe'); return; }
+    var id = uid();
+    db.classes[id] = {id:id, name:name, students:[], structure:[], minActivityId:null};
+    db.settings.activeClassId = id;
+    input.value='';
+    saveDB(); renderTopContext(); renderClasses();
+    toast('Classe « '+name+' » créée');
+  });
+  wireDonneesStatic();
+}
+
+function init(){
+  loadDB();
+  renderTopContext();
+  wireGlobal();
+  showScreen('saisie');
+}
+
+document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
+
+
