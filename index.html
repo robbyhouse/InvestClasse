@@ -157,9 +157,12 @@
   .act-row.row-late{ border-left-color:var(--i); background:#fdf3f2; }
   .act-row.row-done{ border-left-color:var(--ts); }
   .act-row.row-active{ }
-  .act-row.row-upcoming{ opacity:.5; }
-  .act-row.row-closed{ opacity:.7; }
+  .act-row.row-upcoming{ opacity:.55; }
+  .act-row.row-closed{ background:#e7e9ec; }
+  .act-row.row-closed .act-title, .act-row.row-closed .config-row-title{ color:var(--muted); }
   .act-row.row-cursor{ box-shadow:inset 0 0 0 2px var(--accent); border-radius:6px; }
+  .act-row.config-row.row-active, .act-row.config-row.row-upcoming{ cursor:pointer; }
+  .act-row.config-row.row-active:active, .act-row.config-row.row-upcoming:active{ background:#eef1f6; }
   details.closed-section{ border-top:1px solid var(--border); }
   details.closed-section:first-child{ border-top:none; }
   details.closed-section summary{
@@ -1085,7 +1088,8 @@ function renderStructure(){
         var i = flatIndexById[act.id];
         var zone = i<=lastEnd ? 'closed' : (cursorIdx>=0 && i<=cursorIdx ? 'active' : 'upcoming');
         var isCursor = act.id===cls.cursorActivityId;
-        return '<div class="act-row config-row row-'+zone+(isCursor?' row-cursor':'')+'">'+
+        var clickable = zone!=='closed';
+        return '<div class="act-row config-row row-'+zone+(isCursor?' row-cursor':'')+'"'+(clickable?' data-set-cursor="'+act.id+'"':'')+'>'+
           '<div class="config-row-title"><span class="code">'+escapeHtml(code)+'</span> '+escapeHtml(act.titre||'')+(isCursor?' <span title="Curseur d\'avancement">📍</span>':'')+'</div>'+
           '<div class="config-row-actions">'+
             '<button class="btn small danger" data-del-act="'+seq.id+'|'+obj.id+'|'+act.id+'">✕</button>'+
@@ -1104,9 +1108,9 @@ function renderStructure(){
 
   var periodsCardHtml = (function(){
     var openCount = (cursorIdx>=0 && cursorIdx>lastEnd) ? (cursorIdx-lastEnd) : 0;
-    var cursorOptions = '<option value="">— Non défini —</option>'+flat.map(function(a,i){
-      return '<option value="'+a.id+'"'+(a.id===cls.cursorActivityId?' selected':'')+(i<=lastEnd?' disabled':'')+'>'+escapeHtml(a.code)+' — '+escapeHtml(a.actTitre||'')+'</option>';
-    }).join('');
+    var cursorInfo = cls.cursorActivityId
+      ? '<p class="muted">📍 Curseur actuel : <strong>'+escapeHtml(flat[cursorIdx] ? flat[cursorIdx].code : '?')+'</strong> — touche une activité ci-dessous pour le déplacer.</p>'
+      : '<p class="muted">Aucun curseur défini — touche une activité ci-dessous pour marquer où en est la classe.</p>';
     var zoneInfo = openCount
       ? '<p class="muted">Zone active : <strong>'+openCount+' activité(s)</strong> non verrouillée(s), de '+escapeHtml(flat[lastEnd+1].code)+' à '+escapeHtml(flat[cursorIdx].code)+'. La note « 🔓 Période en cours » se calcule en direct sur cette zone.</p>'+
         '<button class="btn block" id="btnLockPeriod">🔒 Verrouiller cette période</button>'
@@ -1123,9 +1127,7 @@ function renderStructure(){
       : '';
     return '<div class="card">'+
       '<h2>Périodes d\'évaluation</h2>'+
-      '<div class="field"><label>Curseur d\'avancement (où en est la classe)</label>'+
-        '<select id="cursorSelect">'+cursorOptions+'</select>'+
-      '</div>'+
+      cursorInfo+
       zoneInfo+
       checkpointsHtml+
     '</div>';
@@ -1146,7 +1148,6 @@ function renderStructure(){
       '</details>'+
       '<p class="muted" style="margin-top:8px;">📍 Le <strong>curseur d\'avancement</strong> (ci-dessous) marque l\'activité où la classe devrait en être. Tout ce qui précède le curseur et n\'est pas encore fait est signalé « en retard ». Quand tu es prêt(e) à figer une note, verrouille la période : tout ce qui est avant le curseur (et après le dernier verrouillage) compte dans cette note, définitivement.</p>'+
     '</div>'+
-    periodsCardHtml+
     '<div class="card">'+
       '<h2>Ajouter manuellement</h2>'+
       '<h3>Nouvelle séquence</h3>'+
@@ -1172,8 +1173,10 @@ function renderStructure(){
         '</div>'
       ) : '<p class="muted">Ajoutez d\'abord une séquence.</p>')+
     '</div>'+
+    periodsCardHtml+
     '<div class="card">'+
       '<h2>Arborescence actuelle</h2>'+
+      '<p class="muted" style="margin-top:-4px;">Touche une activité (zone active ou à venir) pour y déplacer le curseur d\'avancement.</p>'+
       treeHtml+
     '</div>';
 
@@ -1286,7 +1289,8 @@ function wireStructureEvents(classId){
     });
   });
   document.querySelectorAll('[data-del-act]').forEach(function(b){
-    b.addEventListener('click', function(){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
       var parts=b.dataset.delAct.split('|');
       var seq=cls.structure.find(function(s){return s.id===parts[0];});
       var obj=seq && seq.objectifs.find(function(o){return o.id===parts[1];});
@@ -1296,11 +1300,15 @@ function wireStructureEvents(classId){
     });
   });
 
-  var cursorSelect = document.getElementById('cursorSelect');
-  if(cursorSelect) cursorSelect.addEventListener('change', function(e){
-    cls.cursorActivityId = e.target.value || null;
-    saveDB(); renderStructure();
+  document.querySelectorAll('[data-set-cursor]').forEach(function(row){
+    row.addEventListener('click', function(e){
+      if(e.target.closest('button')) return; // ne pas interférer avec le bouton ✕
+      cls.cursorActivityId = row.dataset.setCursor;
+      saveDB(); renderStructure();
+      toast('Curseur déplacé 📍');
+    });
   });
+
   var btnLockPeriod = document.getElementById('btnLockPeriod');
   if(btnLockPeriod) btnLockPeriod.addEventListener('click', function(){
     if(lockCurrentPeriod(classId)){
