@@ -156,7 +156,17 @@
   .act-row:first-child{ border-top:none; }
   .act-row.row-late{ border-left-color:var(--i); background:#fdf3f2; }
   .act-row.row-done{ border-left-color:var(--ts); }
-  .act-row.row-repere{ background:#fff8e8; }
+  .act-row.row-active{ }
+  .act-row.row-upcoming{ opacity:.5; }
+  .act-row.row-closed{ opacity:.7; }
+  .act-row.row-cursor{ box-shadow:inset 0 0 0 2px var(--accent); border-radius:6px; }
+  details.closed-section{ border-top:1px solid var(--border); }
+  details.closed-section:first-child{ border-top:none; }
+  details.closed-section summary{
+    padding:9px 10px; font-size:12.5px; font-weight:600; color:var(--muted);
+    background:#f7f8fa; cursor:pointer; list-style:none;
+  }
+  details.closed-section summary::-webkit-details-marker{ display:none; }
   .config-row{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; }
   .config-row-title{ flex:1; min-width:140px; }
   .config-row-actions{ display:flex; gap:6px; flex-shrink:0; }
@@ -399,28 +409,64 @@ var SMILEYS = [
   {code:'S',  emoji:'🙂', label:'S',  val:3},
   {code:'TS', emoji:'😄', label:'TS', val:4}
 ];
-var PERIODS = [
-  {id:'p1', label:'Période 1', sem:1},
-  {id:'p2', label:'Période 2', sem:1},
-  {id:'p3', label:'Période 3', sem:2},
-  {id:'p4', label:'Période 4', sem:2}
-];
-
 var db = null;
 
 function defaultDB(){
   return {
-    version:1,
-    classes:{},      // id -> {id,name,students:[{id,name}],structure:[...]}
-    grades:{},       // classId -> periodId -> studentId -> activityId -> 'TS'|'S'|'F'|'I'
+    version:2,
+    classes:{},      // id -> {id,name,students:[{id,name}],structure:[...],cursorActivityId,checkpoints:[],selectedPeriod}
+    grades:{},       // classId -> studentId -> activityId -> 'TS'|'S'|'F'|'I' (une seule valeur par activité, continue sur l'année)
     settings:{
       activeClassId:null,
-      activePeriod:'p1',
       exportMode:'letter', // 'letter' | 'numeric'
       numericScale:20,
       lastBackup:null
     }
   };
+}
+
+// Migration v1 -> v2 : périodes fixes (p1..p4) remplacées par des périodes dynamiques
+// (verrouillage manuel d'une zone d'activités). Les notes, autrefois ressaisies à
+// chaque période, deviennent une seule valeur continue par activité et par élève.
+function migrateDB(){
+  if(!db.version) db.version = 1;
+  if(db.version < 2){
+    var OLD_PERIOD_IDS = ['p1','p2','p3','p4'];
+    Object.keys(db.classes||{}).forEach(function(classId){
+      var cls = db.classes[classId];
+      if(cls.minActivityId!==undefined){
+        if(cls.cursorActivityId===undefined) cls.cursorActivityId = cls.minActivityId;
+        delete cls.minActivityId;
+      }
+      if(!cls.checkpoints) cls.checkpoints = [];
+      if(!cls.selectedPeriod) cls.selectedPeriod = 'current';
+    });
+    var oldGrades = db.grades || {};
+    var newGrades = {};
+    Object.keys(oldGrades).forEach(function(classId){
+      var perKey = oldGrades[classId] || {};
+      var looksOldFormat = Object.keys(perKey).some(function(k){ return OLD_PERIOD_IDS.indexOf(k)>-1; });
+      if(looksOldFormat){
+        var flat = {};
+        OLD_PERIOD_IDS.forEach(function(pid){
+          var perStudent = perKey[pid]||{};
+          Object.keys(perStudent).forEach(function(studentId){
+            if(!flat[studentId]) flat[studentId]={};
+            var acts = perStudent[studentId]||{};
+            Object.keys(acts).forEach(function(actId){
+              if(acts[actId]) flat[studentId][actId] = acts[actId]; // p4 écrase p1 si les deux existent
+            });
+          });
+        });
+        newGrades[classId] = flat;
+      } else {
+        newGrades[classId] = perKey;
+      }
+    });
+    db.grades = newGrades;
+    if(db.settings) delete db.settings.activePeriod;
+    db.version = 2;
+  }
 }
 
 function loadDB(){
@@ -435,6 +481,9 @@ function loadDB(){
   if(!db.settings) db.settings = defaultDB().settings;
   if(!db.classes) db.classes = {};
   if(!db.grades) db.grades = {};
+  var versionBefore = db.version;
+  migrateDB();
+  if(db.version !== versionBefore) saveDB(); // persiste immédiatement le résultat de la migration
 }
 function saveDB(){
   try{
@@ -459,44 +508,18 @@ function allActivitiesFlat(structure){
   });
   return out;
 }
-function hasAnyGradeAcrossPeriods(classId, studentId, activityId){
-  var perPeriod = db.grades[classId];
-  if(!perPeriod) return false;
-  for(var pid in perPeriod){
-    var s = (perPeriod[pid]||{})[studentId];
-    if(s && s[activityId]) return true;
-  }
-  return false;
+function smileyByCode(code){
+  for(var i=0;i<SMILEYS.length;i++){ if(SMILEYS[i].code===code) return SMILEYS[i]; }
+  return null;
 }
-function noteScope(classId){
-  // Activités à prendre en compte pour la note d'investissement :
-  // jusqu'au repère de progression si un repère est défini, sinon toutes les activités.
-  var cls = getClass(classId);
-  var flat = allActivitiesFlat(cls.structure);
-  var minIndex = cls.minActivityId ? flat.findIndex(function(a){ return a.id===cls.minActivityId; }) : -1;
-  return minIndex>=0 ? flat.slice(0, minIndex+1) : flat;
+/* ---- Grades : une seule valeur par activité et par élève, continue sur l'année ---- */
+function getStudentGrade(classId, studentId, activityId){
+  return ((db.grades[classId]||{})[studentId]||{})[activityId];
 }
-function progressStatus(classId, studentId){
-  var cls = getClass(classId); if(!cls) return null;
-  var flat = allActivitiesFlat(cls.structure);
-  var minIndex = cls.minActivityId ? flat.findIndex(function(a){ return a.id===cls.minActivityId; }) : -1;
-  if(minIndex<0) return {hasRepere:false};
-  var total = minIndex+1;
-  var done = 0;
-  for(var i=0;i<total;i++){ if(hasAnyGradeAcrossPeriods(classId, studentId, flat[i].id)) done++; }
-  return {hasRepere:true, done:done, total:total, late: done<total, repereActivity:flat[minIndex]};
-}
-function getGrade(classId, periodId, studentId, activityId){
-  var c = db.grades[classId]; if(!c) return undefined;
-  var p = c[periodId]; if(!p) return undefined;
-  var s = p[studentId]; if(!s) return undefined;
-  return s[activityId];
-}
-function setGrade(classId, periodId, studentId, activityId, code){
+function setGrade(classId, studentId, activityId, code){
   if(!db.grades[classId]) db.grades[classId]={};
-  if(!db.grades[classId][periodId]) db.grades[classId][periodId]={};
-  if(!db.grades[classId][periodId][studentId]) db.grades[classId][periodId][studentId]={};
-  var bucket = db.grades[classId][periodId][studentId];
+  if(!db.grades[classId][studentId]) db.grades[classId][studentId]={};
+  var bucket = db.grades[classId][studentId];
   if(bucket[activityId]===code){
     delete bucket[activityId]; // tap again to clear
   } else {
@@ -504,36 +527,93 @@ function setGrade(classId, periodId, studentId, activityId, code){
   }
   saveDB();
 }
-function studentGradesForPeriod(classId, periodId, studentId){
-  return (((db.grades[classId]||{})[periodId]||{})[studentId])||{};
+
+/* ---- Curseur d'avancement & périodes verrouillables ---- */
+function getCursorIndex(classId){
+  var cls = getClass(classId);
+  if(!cls || !cls.cursorActivityId) return -1;
+  var flat = allActivitiesFlat(cls.structure);
+  return flat.findIndex(function(a){ return a.id===cls.cursorActivityId; });
 }
-function smileyByCode(code){
-  for(var i=0;i<SMILEYS.length;i++){ if(SMILEYS[i].code===code) return SMILEYS[i]; }
-  return null;
+function getLastCheckpointEndIndex(classId){
+  var cls = getClass(classId);
+  var cps = cls && cls.checkpoints;
+  return (cps && cps.length) ? cps[cps.length-1].endIndex : -1;
 }
-function computeStudentNote(classId, periodId, studentId){
-  var cls = getClass(classId); if(!cls) return null;
-  var scope = noteScope(classId);
-  if(!scope.length) return {graded:0, total:0, raw:null, letter:null, numeric:null};
-  var g = studentGradesForPeriod(classId, periodId, studentId);
-  var gradedCount = 0;
-  var sum = 0;
+function openZoneActivities(classId){
+  // Activités pas encore verrouillées, entre la dernière période verrouillée (exclue) et le curseur (inclus).
+  var cls = getClass(classId);
+  var flat = allActivitiesFlat(cls.structure);
+  var start = getLastCheckpointEndIndex(classId)+1;
+  var end = getCursorIndex(classId);
+  if(end < start) return [];
+  return flat.slice(start, end+1);
+}
+function progressStatus(classId, studentId){
+  var open = openZoneActivities(classId);
+  if(!open.length) return {hasOpenZone:false};
+  var done = 0;
+  open.forEach(function(a){ if(getStudentGrade(classId, studentId, a.id)) done++; });
+  return {hasOpenZone:true, done:done, total:open.length, late: done<open.length};
+}
+
+/* ---- Calcul de la note (moyenne, activité non cochée = 0) ---- */
+function computeRawNote(classId, studentId, scope){
+  if(!scope || !scope.length) return {avg:null, graded:0, total:0};
+  var graded=0, sum=0;
   scope.forEach(function(a){
-    var code = g[a.id];
-    if(code){
-      var s = smileyByCode(code);
-      if(s){ sum += s.val; gradedCount++; }
-    }
-    // activité non cochée pendant cette période -> compte 0 dans la moyenne
+    var code = getStudentGrade(classId, studentId, a.id);
+    if(code){ var s=smileyByCode(code); if(s){ sum+=s.val; graded++; } }
+    // activité non cochée -> compte 0 dans la moyenne
   });
-  if(gradedCount===0) return {graded:0, total:scope.length, raw:null, letter:null, numeric:null};
-  var avg = sum/scope.length; // moyenne sur 0..4, les activités non cochées comptent 0
-  var nearestInt = Math.max(1, Math.min(4, Math.round(avg)));
+  if(graded===0) return {avg:null, graded:0, total:scope.length};
+  return {avg:sum/scope.length, graded:graded, total:scope.length};
+}
+function formatNote(raw){
+  if(!raw || raw.avg==null) return {letter:null, numeric:null};
+  var nearestInt = Math.max(1, Math.min(4, Math.round(raw.avg)));
   var letterMap = {4:'TS',3:'S',2:'F',1:'I'};
-  var letter = letterMap[nearestInt];
   var scale = db.settings.numericScale||20;
-  var numeric = Math.round(avg/4*scale); // I=1/4, F=2/4, S=3/4, TS=4/4 du barème ; non coché=0 ; arrondi à l'unité
-  return {graded:gradedCount, total:scope.length, raw:avg, letter:letter, numeric:numeric};
+  var numeric = Math.round(raw.avg/4*scale); // I=1/4, F=2/4, S=3/4, TS=4/4 du barème ; arrondi à l'unité
+  return {letter:letterMap[nearestInt], numeric:numeric};
+}
+function computeStudentNote(classId, periodSelector, studentId){
+  var cls = getClass(classId); if(!cls) return {graded:0,total:0,raw:null,letter:null,numeric:null};
+  var rawObj;
+  if(!periodSelector || periodSelector==='current'){
+    rawObj = computeRawNote(classId, studentId, openZoneActivities(classId));
+  } else {
+    var cp = (cls.checkpoints||[]).find(function(c){ return c.id===periodSelector; });
+    rawObj = cp ? (cp.notes[studentId]||{avg:null,graded:0,total:0}) : computeRawNote(classId, studentId, openZoneActivities(classId));
+  }
+  var fmt = formatNote(rawObj);
+  return {graded:rawObj.graded, total:rawObj.total, raw:rawObj.avg, letter:fmt.letter, numeric:fmt.numeric};
+}
+
+/* ---- Verrouillage / déverrouillage d'une période ---- */
+function lockCurrentPeriod(classId){
+  var cls = getClass(classId);
+  var cursorIdx = getCursorIndex(classId);
+  var lastEnd = getLastCheckpointEndIndex(classId);
+  if(cursorIdx<0){ toast('Place d\'abord le curseur d\'avancement (onglet Structure)'); return false; }
+  if(cursorIdx<=lastEnd){ toast('Aucune nouvelle activité depuis le dernier verrouillage'); return false; }
+  var scope = openZoneActivities(classId);
+  var notes = {};
+  (cls.students||[]).forEach(function(st){ notes[st.id] = computeRawNote(classId, st.id, scope); });
+  if(!cls.checkpoints) cls.checkpoints = [];
+  var cp = {id:uid(), name:'Période '+(cls.checkpoints.length+1), endIndex:cursorIdx, lockedAt:new Date().toISOString(), notes:notes};
+  cls.checkpoints.push(cp);
+  cls.selectedPeriod = cp.id;
+  saveDB();
+  return true;
+}
+function unlockLastCheckpoint(classId){
+  var cls = getClass(classId);
+  if(!cls.checkpoints || !cls.checkpoints.length) return false;
+  var removed = cls.checkpoints.pop();
+  if(cls.selectedPeriod===removed.id) cls.selectedPeriod = 'current';
+  saveDB();
+  return true;
 }
 
 /* ===================== STRUCTURE CSV IMPORT/EXPORT ===================== */
@@ -736,10 +816,20 @@ function renderTopContext(){
     db.settings.activeClassId = classes.length ? classes[0].id : null;
   }
   classSel.value = db.settings.activeClassId || '';
-  periodSel.innerHTML = PERIODS.map(function(p){
-    return '<option value="'+p.id+'">'+p.label+' (S'+p.sem+')</option>';
-  }).join('');
-  periodSel.value = db.settings.activePeriod;
+
+  var cls = getClass(db.settings.activeClassId);
+  if(cls){
+    var opts = (cls.checkpoints||[]).map(function(cp){ return '<option value="'+cp.id+'">🔒 '+escapeHtml(cp.name)+'</option>'; });
+    opts.push('<option value="current">🔓 Période en cours</option>');
+    periodSel.innerHTML = opts.join('');
+    periodSel.disabled = false;
+    var valid = cls.selectedPeriod==='current' || (cls.checkpoints||[]).some(function(cp){ return cp.id===cls.selectedPeriod; });
+    if(!valid) cls.selectedPeriod = 'current';
+    periodSel.value = cls.selectedPeriod;
+  } else {
+    periodSel.innerHTML = '<option value="current">—</option>';
+    periodSel.disabled = true;
+  }
 }
 
 /* ===================== SAISIE ===================== */
@@ -751,7 +841,6 @@ function renderSaisie(){
     return;
   }
   var cls = db.classes[classId];
-  var periodId = db.settings.activePeriod;
   if(!cls.students || !cls.students.length){
     container.innerHTML = '<div class="empty-state">Importez la liste des élèves de cette classe dans l\'onglet <strong>Classes</strong>.</div>';
     return;
@@ -761,39 +850,44 @@ function renderSaisie(){
     return;
   }
   if(saisieState.mode==='grading' && saisieState.studentId && cls.students.some(function(s){return s.id===saisieState.studentId;})){
-    container.innerHTML = renderGradingView(classId, periodId, saisieState.studentId);
-    wireGradingView(classId, periodId);
+    container.innerHTML = renderGradingView(classId, saisieState.studentId);
+    wireGradingView(classId);
   } else {
     saisieState.mode='list';
-    container.innerHTML = renderStudentListView(classId, periodId);
-    wireStudentListView(classId, periodId);
+    container.innerHTML = renderStudentListView(classId);
+    wireStudentListView(classId);
   }
 }
 
-function renderStudentListView(classId, periodId){
+function renderStudentListView(classId){
   var cls = getClass(classId);
   var search = normalize(saisieState.search||'');
   var items = cls.students.filter(function(s){ return !search || normalize(s.name).indexOf(search)>-1; });
+  var periodSelector = cls.selectedPeriod || 'current';
   var tiles = items.map(function(s){
-    var note = computeStudentNote(classId, periodId, s.id);
+    var note = computeStudentNote(classId, periodSelector, s.id);
     var noteVal = note.graded>0 ? (Math.round(note.raw/4*20)+'/20') : '—';
     var genderClass = s.genre==='M' ? 'gender-m' : (s.genre==='F' ? 'gender-f' : 'gender-x');
     var prog = progressStatus(classId, s.id);
-    var lateBadge = (prog && prog.hasRepere && prog.late) ? '<span class="tile-late" title="En retard sur le repère de progression">⚠️</span>' : '';
+    var lateBadge = (prog.hasOpenZone && prog.late) ? '<span class="tile-late" title="En retard sur la zone active">⚠️</span>' : '';
     return '<div class="tile '+genderClass+'" data-sid="'+s.id+'">'+
       '<div class="tile-top"><span class="tile-note">'+escapeHtml(String(noteVal))+'</span>'+lateBadge+'</div>'+
       '<div class="tile-name">'+escapeHtml(s.name)+'</div>'+
       '<div class="tile-sub">'+note.graded+'/'+note.total+' activités</div>'+
     '</div>';
   }).join('');
+  var lockedBanner = periodSelector!=='current'
+    ? '<p class="muted" style="margin:-4px 0 10px;">🔒 Note figée de « '+escapeHtml((cls.checkpoints.find(function(c){return c.id===periodSelector;})||{}).name||'')+' ». Choisis « 🔓 Période en cours » en haut pour voir/saisir en direct.</p>'
+    : '';
   return '<div class="card">'+
     '<div class="field"><input type="text" id="studentSearch" placeholder="Rechercher un élève…" value="'+escapeHtml(saisieState.search||'')+'"></div>'+
     '</div>'+
+    lockedBanner+
     '<div class="tile-grid">'+
     (tiles || '<div class="empty-state">Aucun élève trouvé.</div>')+
     '</div>';
 }
-function wireStudentListView(classId, periodId){
+function wireStudentListView(classId){
   var search = document.getElementById('studentSearch');
   if(search){
     search.addEventListener('input', function(){
@@ -813,21 +907,22 @@ function wireStudentListView(classId, periodId){
   });
 }
 
-function renderGradingView(classId, periodId, studentId){
+function renderGradingView(classId, studentId){
   var cls = getClass(classId);
   var students = cls.students;
   var idx = students.findIndex(function(s){ return s.id===studentId; });
   var student = students[idx];
-  var grades = studentGradesForPeriod(classId, periodId, studentId);
   var flat = allActivitiesFlat(cls.structure);
-  var minIndex = cls.minActivityId ? flat.findIndex(function(a){ return a.id===cls.minActivityId; }) : -1;
+  var cursorIdx = getCursorIndex(classId);
+  var lastEnd = getLastCheckpointEndIndex(classId);
 
-  var actHtml = flat.map(function(act, i){
-    var current = grades[act.id];
-    var doneEver = hasAnyGradeAcrossPeriods(classId, studentId, act.id);
+  function rowHtml(act, i){
+    var current = getStudentGrade(classId, studentId, act.id);
+    var zone = i<=lastEnd ? 'closed' : (cursorIdx>=0 && i<=cursorIdx ? 'active' : 'upcoming');
     var rowStatus = '';
-    if(minIndex>=0 && i<=minIndex && !doneEver) rowStatus = ' row-late';
-    else if(doneEver) rowStatus = ' row-done';
+    if(zone==='active') rowStatus = current ? ' row-done' : ' row-late';
+    else if(zone==='upcoming') rowStatus = ' row-upcoming';
+    else if(zone==='closed') rowStatus = ' row-closed';
     var btns = SMILEYS.map(function(sm){
       var sel = current===sm.code ? ' sel-'+sm.code : '';
       return '<button class="smiley-btn'+sel+'" data-act="'+act.id+'" data-code="'+sm.code+'">'+
@@ -837,16 +932,30 @@ function renderGradingView(classId, periodId, studentId){
       '<div class="act-title"><span class="code">'+escapeHtml(act.code)+'</span>'+escapeHtml(act.actTitre||'')+'</div>'+
       '<div class="smiley-group">'+btns+'</div>'+
     '</div>';
-  }).join('') || '<div class="empty-state">Aucune activité configurée.</div>';
+  }
 
-  var repereHtml = '';
-  if(minIndex>=0){
-    var ps = progressStatus(classId, studentId);
+  var closedRows = flat.slice(0, lastEnd+1);
+  var restRows = flat.slice(lastEnd+1);
+  var closedHtml = '';
+  if(closedRows.length){
+    var closedDone = closedRows.filter(function(a){ return getStudentGrade(classId, studentId, a.id); }).length;
+    closedHtml = '<details class="closed-section"><summary>🔒 Périodes précédentes — '+closedDone+'/'+closedRows.length+' faites</summary>'+
+      closedRows.map(function(a,i){ return rowHtml(a,i); }).join('')+
+    '</details>';
+  }
+  var mainHtml = restRows.map(function(a, localI){ return rowHtml(a, lastEnd+1+localI); }).join('')
+    || (closedRows.length ? '' : '<div class="empty-state">Aucune activité configurée.</div>');
+
+  var ps = progressStatus(classId, studentId);
+  var progressHtml;
+  if(ps.hasOpenZone){
     var pct = ps.total ? Math.round((ps.done/ps.total)*100) : 0;
-    repereHtml = '<div class="repere-bar '+(ps.late?'late':'ok')+'">'+
+    progressHtml = '<div class="repere-bar '+(ps.late?'late':'ok')+'">'+
       '<div class="repere-fill" style="width:'+pct+'%"></div>'+
-      '<div class="repere-label">Repère '+escapeHtml(ps.repereActivity.code)+' — '+ps.done+'/'+ps.total+(ps.late?' (en retard)':' (à jour)')+'</div>'+
+      '<div class="repere-label">Zone active — '+ps.done+'/'+ps.total+(ps.late?' (en retard)':' (à jour)')+'</div>'+
     '</div>';
+  } else {
+    progressHtml = '<p class="muted">Place le curseur d\'avancement dans l\'onglet <strong>Structure</strong> pour activer le suivi de cette classe.</p>';
   }
 
   return '<div class="card">'+
@@ -857,15 +966,15 @@ function renderGradingView(classId, periodId, studentId){
       '<button class="navbtn" id="btnBackList2" title="Retour à la liste" style="visibility:hidden;">☰</button>'+
       '<button class="navbtn" id="btnNextStudent" '+(idx>=students.length-1?'disabled':'')+'>▶</button>'+
     '</div>'+
-    repereHtml+
+    progressHtml+
     '<button class="btn secondary block" id="btnBackListMain" style="margin-top:10px;">← Retour à la liste des élèves</button>'+
   '</div>'+
-  '<div class="card">'+actHtml+'</div>';
+  '<div class="card">'+closedHtml+mainHtml+'</div>';
 }
-function wireGradingView(classId, periodId){
+function wireGradingView(classId){
   document.querySelectorAll('#saisieContent .smiley-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
-      setGrade(classId, periodId, saisieState.studentId, btn.dataset.act, btn.dataset.code);
+      setGrade(classId, saisieState.studentId, btn.dataset.act, btn.dataset.code);
       renderSaisie();
       toast('Enregistré');
     });
@@ -963,17 +1072,22 @@ function renderStructure(){
   var cls = getClass(classId);
   var otherClasses = classList().filter(function(c){ return c.id!==classId; });
 
+  var flat = allActivitiesFlat(cls.structure);
+  var flatIndexById = {};
+  flat.forEach(function(a,i){ flatIndexById[a.id]=i; });
+  var cursorIdx = getCursorIndex(classId);
+  var lastEnd = getLastCheckpointEndIndex(classId);
+
   var treeHtml = (cls.structure||[]).map(function(seq){
     var objHtml = (seq.objectifs||[]).map(function(obj){
       var actHtml = (obj.activites||[]).map(function(act){
         var code = 'Seq'+(seq.num||'?')+'_Obj'+(obj.num||'?')+'_Act'+(act.num||'?');
-        var isRepere = cls.minActivityId===act.id;
-        return '<div class="act-row config-row'+(isRepere?' row-repere':'')+'">'+
-          '<div class="config-row-title"><span class="code">'+escapeHtml(code)+'</span> '+escapeHtml(act.titre||'')+'</div>'+
+        var i = flatIndexById[act.id];
+        var zone = i<=lastEnd ? 'closed' : (cursorIdx>=0 && i<=cursorIdx ? 'active' : 'upcoming');
+        var isCursor = act.id===cls.cursorActivityId;
+        return '<div class="act-row config-row row-'+zone+(isCursor?' row-cursor':'')+'">'+
+          '<div class="config-row-title"><span class="code">'+escapeHtml(code)+'</span> '+escapeHtml(act.titre||'')+(isCursor?' <span title="Curseur d\'avancement">📍</span>':'')+'</div>'+
           '<div class="config-row-actions">'+
-            (isRepere
-              ? '<button class="btn small" style="background:#e69a1f;" data-clear-repere="1">📍 Retirer le repère</button>'
-              : '<button class="btn small secondary" data-set-repere="'+act.id+'">📍 Repère</button>')+
             '<button class="btn small danger" data-del-act="'+seq.id+'|'+obj.id+'|'+act.id+'">✕</button>'+
           '</div>'+
         '</div>';
@@ -988,6 +1102,35 @@ function renderStructure(){
     '</div>';
   }).join('') || '<div class="empty-state">Aucune séquence configurée pour cette classe.</div>';
 
+  var periodsCardHtml = (function(){
+    var openCount = (cursorIdx>=0 && cursorIdx>lastEnd) ? (cursorIdx-lastEnd) : 0;
+    var cursorOptions = '<option value="">— Non défini —</option>'+flat.map(function(a,i){
+      return '<option value="'+a.id+'"'+(a.id===cls.cursorActivityId?' selected':'')+(i<=lastEnd?' disabled':'')+'>'+escapeHtml(a.code)+' — '+escapeHtml(a.actTitre||'')+'</option>';
+    }).join('');
+    var zoneInfo = openCount
+      ? '<p class="muted">Zone active : <strong>'+openCount+' activité(s)</strong> non verrouillée(s), de '+escapeHtml(flat[lastEnd+1].code)+' à '+escapeHtml(flat[cursorIdx].code)+'. La note « 🔓 Période en cours » se calcule en direct sur cette zone.</p>'+
+        '<button class="btn block" id="btnLockPeriod">🔒 Verrouiller cette période</button>'
+      : '<p class="muted">Avance le curseur au-delà du dernier verrouillage pour pouvoir verrouiller une nouvelle période.</p>';
+    var checkpointsHtml = (cls.checkpoints && cls.checkpoints.length)
+      ? '<hr class="sep"><h3>Périodes verrouillées</h3>'+cls.checkpoints.map(function(cp,i){
+          var startIdx = i===0 ? 0 : cls.checkpoints[i-1].endIndex+1;
+          var isLast = i===cls.checkpoints.length-1;
+          return '<div class="class-item"><div><strong>🔒 '+escapeHtml(cp.name)+'</strong><br>'+
+            '<span class="muted">'+escapeHtml(flat[startIdx]?flat[startIdx].code:'?')+' → '+escapeHtml(flat[cp.endIndex]?flat[cp.endIndex].code:'?')+' · verrouillée le '+fmtDate(cp.lockedAt)+'</span></div>'+
+            (isLast ? '<button class="btn small secondary" id="btnUnlockPeriod">🔓 Déverrouiller</button>' : '')+
+          '</div>';
+        }).join('')
+      : '';
+    return '<div class="card">'+
+      '<h2>Périodes d\'évaluation</h2>'+
+      '<div class="field"><label>Curseur d\'avancement (où en est la classe)</label>'+
+        '<select id="cursorSelect">'+cursorOptions+'</select>'+
+      '</div>'+
+      zoneInfo+
+      checkpointsHtml+
+    '</div>';
+  })();
+
   container.innerHTML =
     '<div class="card">'+
       '<h2>Structure de « '+escapeHtml(cls.name)+' »</h2>'+
@@ -1001,8 +1144,9 @@ function renderStructure(){
         '<pre>Sequence_num;Sequence_titre;Objectif_num;Objectif_titre;Activite_num;Activite_titre\n1;Les nombres relatifs;1;Comparer des relatifs;1;Ranger des nombres relatifs\n1;Les nombres relatifs;1;Comparer des relatifs;2;Placer sur une droite graduée</pre>'+
         '<p class="muted">Une ligne par activité. Les colonnes Séquence/Objectif se répètent sur chaque ligne. Séparateur point-virgule ou virgule, avec ou sans en-tête.</p>'+
       '</details>'+
-      '<p class="muted" style="margin-top:8px;">📍 Le <strong>repère</strong> marque l\'activité où la classe devrait en être. Dans la fiche d\'un élève, tout ce qui précède ce repère et n\'est pas encore fait est signalé « en retard ».</p>'+
+      '<p class="muted" style="margin-top:8px;">📍 Le <strong>curseur d\'avancement</strong> (ci-dessous) marque l\'activité où la classe devrait en être. Tout ce qui précède le curseur et n\'est pas encore fait est signalé « en retard ». Quand tu es prêt(e) à figer une note, verrouille la période : tout ce qui est avant le curseur (et après le dernier verrouillage) compte dans cette note, définitivement.</p>'+
     '</div>'+
+    periodsCardHtml+
     '<div class="card">'+
       '<h2>Ajouter manuellement</h2>'+
       '<h3>Nouvelle séquence</h3>'+
@@ -1049,9 +1193,15 @@ function wireStructureEvents(classId){
         try{
           var structure = parseStructureCSV(e.target.result);
           if(!structure.length){ toast('Aucune activité détectée'); return; }
-          if(cls.structure && cls.structure.length && !confirm('Remplacer la structure actuelle de cette classe ?')) return;
+          if(cls.structure && cls.structure.length){
+            var warn = 'Remplacer la structure actuelle de cette classe ?';
+            if(cls.checkpoints && cls.checkpoints.length) warn += '\n⚠️ Les périodes déjà verrouillées seront réinitialisées (les notes figées ne seront plus valables sur une nouvelle structure).';
+            if(!confirm(warn)) return;
+          }
           cls.structure = structure;
-          cls.minActivityId = null;
+          cls.cursorActivityId = null;
+          cls.checkpoints = [];
+          cls.selectedPeriod = 'current';
           saveDB(); renderStructure();
           toast('Structure importée');
         }catch(err){ alert('Erreur import CSV : '+err.message); }
@@ -1070,11 +1220,15 @@ function wireStructureEvents(classId){
     var choice = prompt('Copier la structure de quelle classe ?\n'+opts+'\n\nTapez le numéro :');
     var i = parseInt(choice,10)-1;
     if(isNaN(i) || !others[i]) return;
-    if(cls.structure && cls.structure.length && !confirm('Remplacer la structure actuelle par celle de "'+others[i].name+'" ?')) return;
+    var warnCopy = 'Remplacer la structure actuelle par celle de "'+others[i].name+'" ?';
+    if(cls.checkpoints && cls.checkpoints.length) warnCopy += '\n⚠️ Les périodes déjà verrouillées seront réinitialisées.';
+    if(cls.structure && cls.structure.length && !confirm(warnCopy)) return;
     cls.structure = JSON.parse(JSON.stringify(others[i].structure||[]));
     // regenerate ids to keep grades independent per class
     (cls.structure||[]).forEach(function(seq){ seq.id=uid(); (seq.objectifs||[]).forEach(function(o){ o.id=uid(); (o.activites||[]).forEach(function(a){ a.id=uid(); }); }); });
-    cls.minActivityId = null;
+    cls.cursorActivityId = null;
+    cls.checkpoints = [];
+    cls.selectedPeriod = 'current';
     saveDB(); renderStructure();
     toast('Structure copiée depuis "'+others[i].name+'"');
   });
@@ -1082,7 +1236,7 @@ function wireStructureEvents(classId){
   var btnClear = document.getElementById('btnClearStruct');
   if(btnClear) btnClear.addEventListener('click', function(){
     if(confirm('Vider toute la structure de cette classe ? Les notes déjà saisies resteront en mémoire mais ne seront plus visibles.')){
-      cls.structure = []; cls.minActivityId = null; saveDB(); renderStructure();
+      cls.structure = []; cls.cursorActivityId = null; cls.checkpoints = []; cls.selectedPeriod = 'current'; saveDB(); renderStructure();
     }
   });
 
@@ -1137,22 +1291,29 @@ function wireStructureEvents(classId){
       var seq=cls.structure.find(function(s){return s.id===parts[0];});
       var obj=seq && seq.objectifs.find(function(o){return o.id===parts[1];});
       if(obj) obj.activites = obj.activites.filter(function(a){return a.id!==parts[2];});
-      if(cls.minActivityId===parts[2]) cls.minActivityId=null;
+      if(cls.cursorActivityId===parts[2]) cls.cursorActivityId=null;
       saveDB(); renderStructure();
     });
   });
-  document.querySelectorAll('[data-set-repere]').forEach(function(b){
-    b.addEventListener('click', function(){
-      cls.minActivityId = b.dataset.setRepere;
-      saveDB(); renderStructure();
-      toast('Repère de progression défini');
-    });
+
+  var cursorSelect = document.getElementById('cursorSelect');
+  if(cursorSelect) cursorSelect.addEventListener('change', function(e){
+    cls.cursorActivityId = e.target.value || null;
+    saveDB(); renderStructure();
   });
-  document.querySelectorAll('[data-clear-repere]').forEach(function(b){
-    b.addEventListener('click', function(){
-      cls.minActivityId = null;
-      saveDB(); renderStructure();
-    });
+  var btnLockPeriod = document.getElementById('btnLockPeriod');
+  if(btnLockPeriod) btnLockPeriod.addEventListener('click', function(){
+    if(lockCurrentPeriod(classId)){
+      renderStructure(); renderTopContext();
+      toast('Période verrouillée 🔒');
+    }
+  });
+  var btnUnlockPeriod = document.getElementById('btnUnlockPeriod');
+  if(btnUnlockPeriod) btnUnlockPeriod.addEventListener('click', function(){
+    if(!confirm('Déverrouiller la dernière période ? Sa note figée sera de nouveau modifiable.')) return;
+    unlockLastCheckpoint(classId);
+    renderStructure(); renderTopContext();
+    toast('Période déverrouillée 🔓');
   });
 }
 
@@ -1164,10 +1325,10 @@ function renderExport(){
     container.innerHTML = '<div class="empty-state">Sélectionnez une classe en haut de l\'écran.</div>';
     return;
   }
-  var periodId = db.settings.activePeriod;
   var cls = getClass(classId);
+  var periodId = cls.selectedPeriod || 'current';
   var rows = buildExportRows(classId, periodId);
-  var periodLabel = PERIODS.find(function(p){return p.id===periodId;}).label;
+  var periodLabel = periodId==='current' ? 'Période en cours' : ('🔒 '+((cls.checkpoints||[]).find(function(c){return c.id===periodId;})||{name:'?'}).name);
 
   var tableRows = rows.map(function(r){
     return '<tr><td>'+escapeHtml(r.name)+'</td><td>'+(r.value!==''?escapeHtml(String(r.value)):'<span class="muted">—</span>')+'</td><td class="muted">'+r.graded+'/'+r.total+'</td></tr>';
@@ -1194,7 +1355,7 @@ function renderExport(){
       '</div>'+
       '<p class="muted" style="margin-top:8px;">« Copier juste les notes » copie une valeur par ligne, dans l\'ordre des élèves de la classe — pratique pour un collage direct dans une colonne Pronote.</p>'+
       '<details class="help" style="margin-top:8px;"><summary>Comment la note est calculée</summary>'+
-        '<p class="muted">Moyenne sur les activités jusqu\'au repère de progression (Structure), ou sur toutes les activités si aucun repère n\'est défini. Pour la période sélectionnée : TS = plein barème, S = 3/4, F = 1/2, I = 1/4, et une activité non cochée compte 0 (sur '+ (db.settings.exportMode==='numeric' ? db.settings.numericScale : 20) +'&nbsp;: TS='+(db.settings.exportMode==='numeric'?db.settings.numericScale:20)+', S='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.75)+', F='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.5)+', I='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.25)+', non coché=0). Chaque période repart de zéro : une activité cochée lors d\'une période précédente ne compte pas si elle n\'est pas recochée pendant la période en cours.</p>'+
+        '<p class="muted">Chaque période correspond à une tranche d\'activités (du dernier verrouillage jusqu\'au curseur d\'avancement au moment du verrouillage). La note est la moyenne sur cette tranche : TS = plein barème, S = 3/4, F = 1/2, I = 1/4, et une activité non cochée compte 0 (sur '+ (db.settings.exportMode==='numeric' ? db.settings.numericScale : 20) +'&nbsp;: TS='+(db.settings.exportMode==='numeric'?db.settings.numericScale:20)+', S='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.75)+', F='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.5)+', I='+Math.round((db.settings.exportMode==='numeric'?db.settings.numericScale:20)*0.25)+', non coché=0). Une fois une période verrouillée (🔒), sa note ne change plus. « 🔓 Période en cours » affiche la moyenne en direct sur les activités déjà couvertes par le curseur mais pas encore verrouillées.</p>'+
       '</details>'+
     '</div>'+
     '<div class="card">'+
@@ -1210,7 +1371,8 @@ function renderExport(){
   });
   document.getElementById('btnDownloadCsv').addEventListener('click', function(){
     var csvRows = [['Nom','Note']].concat(rows.map(function(r){ return [r.name, r.value]; }));
-    downloadText('notes_'+cls.name.replace(/[^a-z0-9]+/gi,'_')+'_'+periodId+'.csv', toCSV(csvRows,';'), 'text/csv;charset=utf-8', true);
+    var periodSlug = periodId==='current' ? 'en_cours' : normalize(periodLabel).replace(/[^a-z0-9]+/gi,'_').replace(/^_+|_+$/g,'');
+    downloadText('notes_'+cls.name.replace(/[^a-z0-9]+/gi,'_')+'_'+periodSlug+'.csv', toCSV(csvRows,';'), 'text/csv;charset=utf-8', true);
   });
   document.getElementById('btnCopyValues').addEventListener('click', function(){
     var text = rows.map(function(r){ return r.value; }).join('\n');
@@ -1267,15 +1429,16 @@ function wireGlobal(){
     saveDB(); renderCurrentScreen();
   });
   document.getElementById('ctxPeriod').addEventListener('change', function(e){
-    db.settings.activePeriod = e.target.value;
-    saveDB(); renderCurrentScreen();
+    var cls = getClass(db.settings.activeClassId);
+    if(cls){ cls.selectedPeriod = e.target.value; saveDB(); }
+    renderCurrentScreen();
   });
   document.getElementById('btnAddClass').addEventListener('click', function(){
     var input = document.getElementById('newClassName');
     var name = input.value.trim();
     if(!name){ toast('Entrez un nom de classe'); return; }
     var id = uid();
-    db.classes[id] = {id:id, name:name, students:[], structure:[], minActivityId:null};
+    db.classes[id] = {id:id, name:name, students:[], structure:[], cursorActivityId:null, checkpoints:[], selectedPeriod:'current'};
     db.settings.activeClassId = id;
     input.value='';
     saveDB(); renderTopContext(); renderClasses();
